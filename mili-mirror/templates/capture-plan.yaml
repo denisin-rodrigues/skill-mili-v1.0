@@ -1,0 +1,64 @@
+# capture-plan.yaml — Saída do ScopePlanner (A-003).
+# Contrato preciso de rotas, viewports, interações e critérios de sucesso.
+
+plan_id: plan_001
+created_at: <ISO-8601>
+source: https://exemplo.com
+
+routes:
+  include:
+    - path: /
+      reason: página principal
+      queries: []
+  exclude:
+    - path: /admin
+      reason: fora do escopo autorizado
+
+viewports:
+  - name: desktop
+    width: 1440
+    height: 900
+  - name: mobile
+    width: 390
+    height: 844
+
+themes: []        # ex.: dark, light
+languages: []     # ex.: pt-BR, en
+
+interactions:
+  - id: scroll-full
+    type: scroll
+    target: document
+    safe: true
+  # Exemplos pós-MVP:
+  # - id: open-menu
+  #   type: click
+  #   target: '[data-menu-button]'
+  #   safe: true
+  # - id: hero-video-play
+  #   type: media-playback
+  #   target: '[data-hero-video]'
+  #   safe: true
+
+prohibited:
+  - comprar
+  - excluir
+  - publicar
+  - enviar mensagem real
+  - alterar conta
+  - submeter formulário de produção
+  - qualquer ação irreversível
+
+media_states:
+  autoplay: observe
+  muted: observe
+
+limits:
+  max_depth: 3
+  rate_limit_requests_per_second: 4
+  max_total_download_gb: 20
+
+success_criteria:
+  minimum_level: L2        # L0..L4, LR ou LP (ver acceptanceLevels no PRD)
+  required_routes_ok: all
+  allow_missing_assets: false

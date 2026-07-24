@@ -1,0 +1,65 @@
+# mirror.config.yaml — Configuração principal do projeto de mirror.
+# Referência completa: docs/ARCHITECTURE.md
+
+project:
+  name: exemplo-mirror
+  output_dir: .            # raiz da estrutura capture/, mirror/, experience-blueprint/
+
+source:
+  url: https://exemplo.com
+  authorized_domains:      # deve ser subconjunto de authorization.yaml
+    - exemplo.com
+    - www.exemplo.com
+    - cdn.exemplo.com
+
+mode:
+  preferred: static-mirror        # M-001: preservar o runtime implantado
+  fallback: editable-recreation   # M-002: quando o mirror não atinge o mínimo
+
+routes:
+  include:
+    - /
+    # - /produto
+    # - /sobre
+  exclude:
+    - /admin
+    - /checkout
+
+viewports:
+  - name: desktop
+    width: 1440
+    height: 900
+  - name: tablet
+    width: 834
+    height: 1112
+  - name: mobile
+    width: 390
+    height: 844
+
+capture:
+  service_workers: inspect   # inspect | disabled (replicar SW é PH-002)
+  web_workers: true
+  lazy_assets: true
+  dynamic_imports: true
+  media: true
+  webgl: true
+  audio: true
+  video: true
+  max_depth: 3
+  rate_limit_requests_per_second: 4
+  max_total_download_gb: 20
+
+interactions:
+  scroll: true               # MVP: exercitado
+  hover: true                # pós-MVP: declarado, reportado como não exercitado
+  click_safe_elements: true  # pós-MVP
+  forms: disabled            # nunca submeter formulários de produção
+  media_playback: true       # pós-MVP
+
+validation:
+  visual: true
+  network: true
+  console: true
+  interactions: true
+  responsive: true
+  offline: true

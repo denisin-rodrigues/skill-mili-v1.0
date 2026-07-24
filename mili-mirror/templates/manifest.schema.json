@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nt-site-mirror/schemas/manifest.schema.json",
+  "title": "Capture Manifest",
+  "type": "object",
+  "required": [
+    "captureId",
+    "projectId",
+    "startedAt",
+    "source",
+    "authorizationHash",
+    "toolVersion",
+    "browser",
+    "routesDeclared",
+    "routesExercised",
+    "requestsObserved",
+    "resourcesLocal",
+    "resourcesBlocked",
+    "resourcesFailed",
+    "acceptanceLevel"
+  ],
+  "properties": {
+    "captureId": { "type": "string" },
+    "projectId": { "type": "string" },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "source": { "type": "string", "format": "uri" },
+    "authorizationHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "toolVersion": { "type": "string" },
+    "browser": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "routesDeclared": { "type": "integer", "minimum": 0 },
+    "routesExercised": { "type": "integer", "minimum": 0 },
+    "interactionsDeclared": { "type": "integer", "minimum": 0 },
+    "interactionsExercised": { "type": "integer", "minimum": 0 },
+    "interactionsNotExercised": { "type": "array", "items": { "type": "string" } },
+    "requestsObserved": { "type": "integer", "minimum": 0 },
+    "resourcesLocal": { "type": "integer", "minimum": 0 },
+    "resourcesExternal": { "type": "integer", "minimum": 0 },
+    "resourcesBlocked": { "type": "integer", "minimum": 0 },
+    "resourcesFailed": { "type": "integer", "minimum": 0 },
+    "sizeCapHit": { "type": "boolean" },
+    "acceptanceLevel": {
+      "type": "string",
+      "enum": ["pending-validation", "L0", "L1", "L2", "L3", "L4", "LR", "LP"]
+    },
+    "lastValidationAt": { "type": "string", "format": "date-time" }
+  }
+}

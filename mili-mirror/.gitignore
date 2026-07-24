@@ -1,0 +1,14 @@
+node_modules/
+output/
+tests/fixture/project/output/
+tests/fixture/project/capture/
+tests/fixture/project/mirror/
+tests/fixture/project/experience-blueprint/
+tests/fixture/project/scope.lock.json
+tests/fixture/project/authorization.hash
+tests/fixture/project/REPORT.md
+tests/fixture/project/KNOWN-GAPS.md
+tests/fixture/project/DEPENDENCIES.md
+tests/fixture/project/AUTHORIZATION-SUMMARY.md
+tests/fixture/project/LAUNCH.md
+*.log

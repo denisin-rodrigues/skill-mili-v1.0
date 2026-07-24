@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nt-site-mirror/schemas/experience-blueprint.schema.json",
+  "title": "Experience Blueprint",
+  "description": "Representação estruturada da experiência observada. Contrato entre descoberta, reconstrução e validação.",
+  "type": "object",
+  "required": ["generatedAt", "classification"],
+  "properties": {
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "classification": {
+      "type": "string",
+      "enum": ["captured", "reconstructed", "approximated", "external", "blocked", "missing", "unexercised"]
+    },
+    "note": { "type": "string" },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "path": { "type": "string" },
+          "title": { "type": ["string", "null"] },
+          "pageType": { "type": "string" },
+          "layout": { "type": "string" },
+          "sections": { "type": "array", "items": { "type": "string" } },
+          "dependencies": { "type": "array", "items": { "type": "string" } },
+          "responsiveBranches": { "type": "array" },
+          "classification": { "type": "string" }
+        }
+      }
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sectionId"],
+        "properties": {
+          "sectionId": { "type": "string" },
+          "semanticRole": { "type": "string" },
+          "startPosition": { "type": "number" },
+          "endPosition": { "type": "number" },
+          "stickyBehavior": { "type": ["string", "boolean"] },
+          "scrollBehavior": { "type": "string" },
+          "background": { "type": "string" },
+          "contentSlots": { "type": "array" },
+          "animations": { "type": "array" },
+          "classification": { "type": "string" }
+        }
+      }
+    },
+    "animations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["animationId", "target", "trigger"],
+        "properties": {
+          "animationId": { "type": "string" },
+          "target": { "type": "string" },
+          "trigger": { "type": "object" },
+          "initialState": { "type": "object" },
+          "finalState": { "type": "object" },
+          "durationMs": { "type": "number" },
+          "delay": { "type": "number" },
+          "easing": { "type": "string" },
+          "staggerSeconds": { "type": "number" },
+          "scrollStart": { "type": ["string", "number"] },
+          "scrollEnd": { "type": ["string", "number"] },
+          "scrub": { "type": "boolean" },
+          "pin": { "type": "boolean" },
+          "mobileOverride": { "type": "object" },
+          "reducedMotionBehavior": { "type": "string" },
+          "classification": { "type": "string" }
+        }
+      }
+    },
+    "items": { "type": "array" }
+  }
+}

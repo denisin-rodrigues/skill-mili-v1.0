@@ -1,0 +1,24 @@
+{
+  "name": "nt-site-mirror",
+  "version": "1.0.0",
+  "description": "Mili Site Mirror Agent Team — captura autorizada, análise, reconstrução editável e validação de experiências frontend.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "doctor": "node scripts/doctor.js",
+    "guardian": "node scripts/guardian.js",
+    "capture": "node scripts/capture.js",
+    "blueprint": "node scripts/blueprint.js",
+    "serve": "node server/serve.js",
+    "validate": "node scripts/validate.js",
+    "report": "node scripts/report.js",
+    "selftest": "node scripts/selftest.js"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0",
+    "yaml": "^2.6.0"
+  }
+}

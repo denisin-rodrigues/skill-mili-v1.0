@@ -1,0 +1,47 @@
+project:
+  name: fixture-selftest
+  output_dir: .
+
+source:
+  url: http://127.0.0.1:51996
+  authorized_domains:
+    - 127.0.0.1
+
+mode:
+  preferred: static-mirror
+  fallback: editable-recreation
+
+routes:
+  include:
+    - /
+    - /sobre
+  exclude: []
+
+viewports:
+  - name: desktop
+    width: 1440
+    height: 900
+  - name: mobile
+    width: 390
+    height: 844
+
+capture:
+  lazy_assets: true
+  media: true
+  max_depth: 3
+  rate_limit_requests_per_second: 40
+  max_total_download_gb: 1
+
+interactions:
+  scroll: true
+  hover: false
+  click_safe_elements: false
+  forms: disabled
+  media_playback: false
+
+validation:
+  visual: true
+  network: true
+  console: true
+  responsive: true
+  offline: true

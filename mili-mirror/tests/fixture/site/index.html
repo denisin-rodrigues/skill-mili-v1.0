@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture — Página Inicial</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header id="topo" class="site-header">
+    <img src="/assets/logo.svg" alt="Logo Fixture" width="120" height="40">
+    <nav>
+      <a href="/">Início</a>
+      <a href="/sobre">Sobre</a>
+    </nav>
+  </header>
+
+  <main>
+    <section id="hero" class="hero">
+      <h1>Experência Fixture</h1>
+      <p>Site controlado para o self-test do nt-site-mirror.</p>
+    </section>
+
+    <section id="recursos" class="features">
+      <article class="card"><h2>Captura</h2><p>Rede observada em navegador real.</p></article>
+      <article class="card"><h2>Escopo</h2><p>Allowlist bloqueia origens externas.</p></article>
+      <article class="card"><h2>Validação</h2><p>Rotas, console, rede e byte-range.</p></article>
+    </section>
+
+    <section id="lazy-zone" class="lazy-zone">
+      <h2>Zona de carregamento tardio</h2>
+      <p>Role até o fim para disparar o lazy asset.</p>
+      <div id="lazy-slot"></div>
+    </section>
+
+    <!-- Recurso externo: deve ser BLOQUEADO pela allowlist do Guardian -->
+    <img src="https://cdn.externo-fake.com/pixel.png" alt="pixel externo" width="1" height="1">
+  </main>
+
+  <footer id="rodape" class="site-footer">
+    <p>Fixture do nt-site-mirror. Uso exclusivo em testes locais.</p>
+  </footer>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

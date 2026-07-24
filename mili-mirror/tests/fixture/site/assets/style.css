@@ -1,0 +1,73 @@
+:root {
+  --brand-primary: #6d28d9;
+  --brand-accent: #22d3ee;
+  --surface: #0f172a;
+  --surface-2: #1e293b;
+  --text: #e2e8f0;
+  --radius-md: 12px;
+  --space-md: 24px;
+  --font-display: 'Inter', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-display);
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md);
+  background: var(--surface-2);
+}
+
+.site-header nav a {
+  color: var(--brand-accent);
+  margin-left: 16px;
+  text-decoration: none;
+}
+
+.hero {
+  min-height: 70vh;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.hero h1 { color: var(--brand-primary); font-size: 3rem; }
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  padding: var(--space-md);
+}
+
+.card {
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.lazy-zone {
+  min-height: 120vh;
+  padding: var(--space-md);
+}
+
+#lazy-slot img { width: 320px; display: block; margin-top: 16px; }
+
+.site-footer {
+  padding: var(--space-md);
+  background: #020617;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .features { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 2rem; }
+}

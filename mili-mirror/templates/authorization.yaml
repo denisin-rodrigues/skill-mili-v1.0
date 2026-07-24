@@ -1,0 +1,44 @@
+# authorization.yaml — Autorização para captura e reprodução local de frontend.
+# Gerado pelo assistente `ntmirror init` (ver agents/guardian.md).
+# O Guardian valida este arquivo antes de qualquer captura (CP-002: AuthorizationFirst).
+
+project_name: <nome-do-projeto>
+
+# owner | client-approved | employee | license | local-self-declared
+authorization_type: client-approved
+
+source:
+  primary_domain: exemplo.com
+
+# Domínios cuja captura é autorizada (inclua CDNs próprias).
+authorized_domains:
+  - exemplo.com
+  - www.exemplo.com
+  - cdn.exemplo.com
+
+# Rotas autorizadas. Use "*" somente com autorização explícita do titular.
+authorized_routes:
+  - /
+  # - /produto
+  # - /sobre
+
+authorized_actions:
+  static_asset_capture: true
+  route_capture: true
+  interaction_capture: true
+  authenticated_capture: false   # login sempre manual pelo usuário autorizado
+  third_party_assets: false      # ativos de terceiros: classificar, não preservar
+
+authorized_by:
+  name: <nome do responsável>
+  role: <cargo>
+  company: <empresa titular>
+  email: <email corporativo>
+
+valid_from: <AAAA-MM-DD>
+valid_until: <AAAA-MM-DD>
+
+# Verificação de domínio (preencher quando aplicável — ver docs/ARCHITECTURE.md):
+# domain_verification:
+#   method: well-known-file | dns-txt | client-letter | local-self-declared
+#   token: <TOKEN_UNICO>

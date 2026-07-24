@@ -1,0 +1,27 @@
+project_name: fixture-selftest
+authorization_type: local-self-declared
+
+source:
+  primary_domain: 127.0.0.1
+
+authorized_domains:
+  - 127.0.0.1
+
+authorized_routes:
+  - "*"
+
+authorized_actions:
+  static_asset_capture: true
+  route_capture: true
+  interaction_capture: true
+  authenticated_capture: false
+  third_party_assets: false
+
+authorized_by:
+  name: Self Test
+  role: Automação local (DV-004)
+  company: nt-site-mirror
+  email: selftest@localhost
+
+valid_from: 2026-01-01
+valid_until: 2027-12-31
