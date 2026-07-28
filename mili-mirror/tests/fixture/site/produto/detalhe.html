@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fixture — Produto (rota aninhada)</title>
+  <!-- Paths relativos em rota aninhada: resolução é contra /produto/detalhe -->
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+  <header id="topo" class="site-header">
+    <nav><a href="/">Início</a></nav>
+  </header>
+  <main>
+    <section id="produto" class="hero">
+      <h1>Produto — rota aninhada</h1>
+      <!-- relativo → /assets/logo.svg -->
+      <img src="../assets/logo.svg" alt="Logo relativo" width="120" height="40">
+      <!-- relativo → /produto/relativo.svg (arquivo no mesmo nível da rota) -->
+      <img src="./relativo.svg" alt="Asset irmão da rota" width="60" height="60">
+    </section>
+  </main>
+  <footer id="rodape" class="site-footer"><p>Fim.</p></footer>
+</body>
+</html>

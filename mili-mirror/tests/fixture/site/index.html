@@ -4,32 +4,80 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fixture — Página Inicial</title>
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/style.css">
+  <link rel="modulepreload" href="/assets/js/main.js">
+  <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/inter.woff2" crossorigin>
+  <link rel="preload" as="image" href="/assets/poster.png" imagesrcset="/assets/responsive.png?w=640 640w">
+  <link rel="manifest" href="/assets/site.webmanifest">
 </head>
 <body>
   <header id="topo" class="site-header">
     <img src="/assets/logo.svg" alt="Logo Fixture" width="120" height="40">
+    <!-- Redirect: /old-logo responde 302 para /assets/logo.svg -->
+    <img src="/old-logo" alt="Logo via redirect" width="120" height="40">
     <nav>
       <a href="/">Início</a>
       <a href="/sobre">Sobre</a>
+      <a href="/produto/detalhe">Produto</a>
+      <a href="mailto:contato@fixture.local">E-mail</a>
+      <a href="tel:+550000000000">Ligar</a>
+      <a href="javascript:void(0)">JS link</a>
     </nav>
   </header>
 
   <main>
     <section id="hero" class="hero">
       <h1>Experência Fixture</h1>
-      <p>Site controlado para o self-test do nt-site-mirror.</p>
+      <p>Site controlado para o self-test de resolução de assets.</p>
     </section>
 
-    <section id="recursos" class="features">
-      <article class="card"><h2>Captura</h2><p>Rede observada em navegador real.</p></article>
-      <article class="card"><h2>Escopo</h2><p>Allowlist bloqueia origens externas.</p></article>
-      <article class="card"><h2>Validação</h2><p>Rotas, console, rede e byte-range.</p></article>
+    <section id="responsivo" class="features">
+      <h2>Imagens responsivas (query variants)</h2>
+      <img
+        src="/assets/responsive.png?w=640"
+        srcset="/assets/responsive.png?w=320 320w, /assets/responsive.png?w=640 640w, /assets/responsive.png?w=1280 1280w"
+        sizes="(max-width: 600px) 320px, 100vw"
+        alt="Responsiva via srcset">
+      <!-- Variantes explícitas: garante captura determinística das 3 queries -->
+      <img class="probe" src="/assets/responsive.png?w=320" alt="" width="16">
+      <img class="probe" src="/assets/responsive.png?w=1280" alt="" width="16">
+    </section>
+
+    <section id="codificacao" class="features">
+      <h2>URLs codificadas, fragmentos e caracteres especiais</h2>
+      <img src="/assets/espa%C3%A7o.png" alt="Arquivo com espaço no nome" width="80">
+      <img src="/assets/icons.svg#icon-star" alt="Sprite com fragment" width="40" height="40">
+      <img src="/assets/relatório(2026).svg" alt="Nome com acento e parênteses" width="80">
+    </section>
+
+    <section id="midia" class="features">
+      <h2>Vídeo com query + byte range</h2>
+      <video controls muted preload="metadata" poster="/assets/poster.png" width="320">
+        <source src="/assets/intro.mp4?v=hd" type="video/mp4">
+      </video>
+      <object data="/assets/spec.svg" type="image/svg+xml" width="120" height="60"></object>
+      <embed src="/assets/spec.svg" type="image/svg+xml" width="120" height="60">
+    </section>
+
+    <section id="dados" class="features">
+      <h2>Dados e iframe autorizado</h2>
+      <pre id="api-out">aguardando fetch…</pre>
+      <iframe src="/sobre" title="Sobre embutido" width="320" height="120"></iframe>
+      <div id="icon-slot"></div>
+    </section>
+
+    <section id="formulario" class="features">
+      <h2>Formulário (deve ser neutralizado)</h2>
+      <form action="/pesquisar" method="get">
+        <input name="q" placeholder="busca">
+        <button type="submit">Buscar</button>
+      </form>
     </section>
 
     <section id="lazy-zone" class="lazy-zone">
       <h2>Zona de carregamento tardio</h2>
-      <p>Role até o fim para disparar o lazy asset.</p>
+      <p>Role até o fim: dynamic import literal carrega o chunk e insere o lazy asset.</p>
       <div id="lazy-slot"></div>
     </section>
 
@@ -41,6 +89,6 @@
     <p>Fixture do nt-site-mirror. Uso exclusivo em testes locais.</p>
   </footer>
 
-  <script src="/assets/app.js"></script>
+  <script type="module" src="/assets/js/main.js"></script>
 </body>
 </html>

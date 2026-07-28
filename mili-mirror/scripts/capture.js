@@ -1,10 +1,13 @@
 #!/usr/bin/env node
-// RuntimeScout + RouteAndStateExplorer + AssetAcquisition (A-004/A-005/A-006, MVP).
+// RuntimeScout + RouteAndStateExplorer + AssetAcquisition (A-004/A-005/A-006).
 // Opens authorized routes in real Chromium, exercises scroll, captures every response
-// body from allowed origins, stores assets with hashes and writes the serving contract.
+// body from allowed origins, stores assets query-aware with hashes and writes the
+// serving contract v2. Rewriting lives in scripts/rewrite.js.
 //
 // Usage: node scripts/capture.js --config mirror.config.yaml [--routes /,/sobre] [--headed]
 import fs from 'node:fs';
+import http from 'node:http';
+import https from 'node:https';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import {
@@ -21,34 +24,56 @@ import {
 import { sha256Buffer, shortHash, sha256File } from './lib/hash.js';
 import { redactString, redactHeaders } from './lib/redact.js';
 import { Allowlist } from './lib/allowlist.js';
-import { kindForMime, extForMime } from './lib/mime.js';
+import { kindForMime } from './lib/mime.js';
+import { canonicalizeUrl } from './lib/url-resolver.js';
+import { AssetRegistry } from './lib/asset-store.js';
+import { EXIT, failWith } from './lib/exit-codes.js';
 
 const MAX_SCROLL_STEPS = 80;
 const SCROLL_DELAY_MS = 250;
+const MAX_REDIRECTS = 5;
 
-function assetPaths(project, url, contentType) {
-  const host = url.hostname.toLowerCase();
-  let pathname = decodeURIComponent(url.pathname || '/');
-  if (pathname.endsWith('/')) pathname = `${pathname}index`;
-  let rel = sanitizePathname(pathname);
-  if (!path.posix.extname(rel)) {
-    const ext = extForMime(contentType);
-    if (ext) rel += ext;
-  }
-  if (url.search) {
-    const ext = path.posix.extname(rel);
-    const base = ext ? rel.slice(0, -ext.length) : rel;
-    rel = `${base}__q_${shortHash(url.search)}${ext}`;
-  }
-  const localRel = path.join('mirror', 'assets', host, ...rel.split('/'));
-  return { localRel, localAbs: path.join(project.outputDir, localRel) };
-}
-
-/** Path the browser would request on the local server for this asset. */
-function serverPathFor(url, primaryHost) {
-  const host = url.hostname.toLowerCase();
-  if (host === primaryHost) return decodeURIComponent(url.pathname) || '/';
-  return `/__ext/${host}${decodeURIComponent(url.pathname)}`;
+/**
+ * Authorized direct download (acquisition strategy #2): full body without Range,
+ * following redirects, allowlist-enforced. Used for media and partial (206) responses,
+ * where the browser only delivers fragments.
+ */
+function directDownload(urlString, allowlist) {
+  return new Promise((resolve) => {
+    const doGet = (current, redirectsLeft, chain) => {
+      if (!allowlist.isAllowed(current)) {
+        resolve({ ok: false, error: 'not-authorized', chain });
+        return;
+      }
+      const mod = current.startsWith('https:') ? https : http;
+      const req = mod.get(current, { headers: { 'User-Agent': 'nt-site-mirror/direct-fetch' } }, (res) => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+          res.resume();
+          if (redirectsLeft === 0) {
+            resolve({ ok: false, error: 'redirect-limit', chain });
+            return;
+          }
+          doGet(new URL(res.headers.location, current).toString(), redirectsLeft - 1, [...chain, current]);
+          return;
+        }
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => {
+          resolve({
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            headers: res.headers,
+            body: Buffer.concat(chunks),
+            chain,
+            finalUrl: current,
+          });
+        });
+      });
+      req.on('error', (err) => resolve({ ok: false, error: err.message, chain }));
+      req.setTimeout(120000, () => req.destroy(new Error('timeout')));
+    };
+    doGet(urlString, MAX_REDIRECTS, []);
+  });
 }
 
 async function exerciseScroll(page, viewportHeight) {
@@ -81,7 +106,6 @@ async function main() {
   const scope = requireScopeLock(project);
 
   const sourceUrl = config.source.url;
-  const primaryHost = new URL(sourceUrl).hostname.toLowerCase();
   const allowlist = new Allowlist(scope.domains);
   const routes = args.routes ? String(args.routes).split(',').map((r) => r.trim()) : scope.routes.include;
   const viewports = scope.viewports?.length
@@ -104,9 +128,8 @@ async function main() {
   const failed = [];
   const redirects = [];
   const consoleByRoute = {};
-  const rewriteMap = new Map(); // absolute URL -> local server path
-  const assetsByServerPath = new Map(); // server path -> local relative file
-  const seenUrls = new Set();
+  const registry = new AssetRegistry();
+  const directMediaQueue = new Map(); // canonical -> { url, routePath, viewportName, chain }
   let totalBytes = 0;
   let sizeCapHit = false;
   let requestsObserved = 0;
@@ -125,6 +148,21 @@ async function main() {
   const recordAcquisition = (record) => {
     records.push(record);
     appendJsonl(project.files.acquisitionRecords, record);
+  };
+
+  const storeBody = (body, url, contentType, extra) => {
+    if (sizeCapHit || totalBytes + body.length > maxBytes) {
+      sizeCapHit = true;
+      return { entry: null, stored: false, classification: 'blocked' };
+    }
+    const entry = registry.register(url, contentType, extra);
+    const localAbs = path.join(project.outputDir, entry.localRel);
+    if (!fs.existsSync(localAbs)) {
+      ensureDir(path.dirname(localAbs));
+      fs.writeFileSync(localAbs, body);
+      totalBytes += body.length;
+    }
+    return { entry, stored: true, classification: 'captured' };
   };
 
   for (const viewport of viewports) {
@@ -198,8 +236,22 @@ async function main() {
           if (status >= 400) failed.push({ url: request.url(), route: routePath, viewport: viewport.name, error: `HTTP ${status}` });
           return;
         }
-        if (seenUrls.has(request.url())) return;
-        seenUrls.add(request.url());
+
+        const url = new URL(request.url());
+        const canonical = canonicalizeUrl(url);
+        if (registry.has(canonical)) return;
+
+        const contentType = response.headers()['content-type'] || 'application/octet-stream';
+        const kind = kindForMime(contentType);
+
+        // Media and partial (206) responses: browser only delivers fragments.
+        // Queue an authorized direct download instead of storing partial bodies.
+        if (kind === 'video' || kind === 'audio' || status === 206) {
+          if (!directMediaQueue.has(canonical)) {
+            directMediaQueue.set(canonical, { url: request.url(), routePath, viewportName: viewport.name, chain, contentType, kind });
+          }
+          return;
+        }
 
         pendingWrites.push(
           (async () => {
@@ -210,47 +262,75 @@ async function main() {
               failed.push({ url: request.url(), route: routePath, viewport: viewport.name, error: `body: ${err.message}` });
               return;
             }
-            const url = new URL(request.url());
-            const contentType = response.headers()['content-type'] || 'application/octet-stream';
-            const { localRel, localAbs } = assetPaths(project, url, contentType);
-            const sha256 = sha256Buffer(body);
-            let classification = 'captured';
-            let stored = true;
-
-            if (sizeCapHit || totalBytes + body.length > maxBytes) {
-              sizeCapHit = true;
-              classification = 'blocked';
-              stored = false;
-            } else if (!fs.existsSync(localAbs)) {
-              ensureDir(path.dirname(localAbs));
-              fs.writeFileSync(localAbs, body);
-              totalBytes += body.length;
-            }
-
-            const serverPath = serverPathFor(url, primaryHost);
-            const kind = kindForMime(contentType);
-            // HTML documents are served via the routes map; they stay out of the assets map
-            if (stored && kind !== 'html' && !assetsByServerPath.has(serverPath)) {
-              assetsByServerPath.set(serverPath, localRel);
-              rewriteMap.set(request.url(), serverPath);
+            const { entry, stored, classification } = storeBody(body, url, contentType, { kind });
+            if (!entry) {
+              recordAcquisition({
+                sourceUrl: request.url(),
+                canonical,
+                localPath: null,
+                requestPath: url.pathname,
+                requestQuery: url.search.slice(1),
+                status,
+                contentType: contentType.split(';')[0],
+                kind,
+                sizeBytes: body.length,
+                sha256: sha256Buffer(body),
+                acquisitionMethod: 'browser-response',
+                routeDiscovered: routePath,
+                interactionDiscovered: 'initial-load',
+                redirectChain: chain,
+                classification: 'blocked',
+                headers: redactHeaders(response.headers()),
+              });
+              return;
             }
 
             recordAcquisition({
               sourceUrl: request.url(),
-              localPath: stored ? localRel.replaceAll(path.sep, '/') : null,
-              serverPath,
+              canonical: entry.canonical,
+              localPath: stored ? entry.localRel.replaceAll(path.sep, '/') : null,
+              requestPath: entry.requestPath,
+              requestQuery: entry.requestQuery,
               status,
-              contentType: contentType.split(';')[0],
+              contentType: entry.contentType,
               kind,
               sizeBytes: body.length,
-              sha256,
+              sha256: sha256Buffer(body),
               acquisitionMethod: 'browser-response',
               routeDiscovered: routePath,
               interactionDiscovered: 'initial-load',
               redirectChain: chain,
-              classification: stored ? classification : 'blocked',
+              classification,
               headers: redactHeaders(response.headers()),
             });
+
+            // Redirect aliases: pre-redirect URLs resolve to the final stored file
+            for (const aliasUrlString of chain) {
+              const aliasUrl = new URL(aliasUrlString);
+              const aliasCanonical = canonicalizeUrl(aliasUrl);
+              if (registry.has(aliasCanonical)) continue;
+              // localRel forced at registration time (V-03): bookkeeping is never stale
+              const aliasEntry = registry.register(aliasUrl, contentType, { kind, viaRedirect: true, localRel: entry.localRel });
+              recordAcquisition({
+                sourceUrl: aliasUrlString,
+                canonical: aliasCanonical,
+                localPath: entry.localRel.replaceAll(path.sep, '/'),
+                requestPath: aliasEntry.requestPath,
+                requestQuery: aliasEntry.requestQuery,
+                status,
+                contentType: entry.contentType,
+                kind,
+                sizeBytes: body.length,
+                sha256: sha256Buffer(body),
+                acquisitionMethod: 'redirect-alias',
+                routeDiscovered: routePath,
+                interactionDiscovered: 'initial-load',
+                redirectChain: [...chain, request.url()],
+                classification: 'captured',
+                viaRedirect: true,
+                headers: redactHeaders(response.headers()),
+              });
+            }
           })(),
         );
       });
@@ -305,31 +385,72 @@ async function main() {
 
   await browser.close();
 
-  // Rewrite captured absolute URLs inside HTML pages and CSS files
-  let rewriteCount = 0;
-  const rewriteText = (text) => {
-    let out = text;
-    for (const [absoluteUrl, serverPath] of rewriteMap) {
-      const protocolRelative = absoluteUrl.replace(/^https?:/, '');
-      const before = out;
-      out = out.split(absoluteUrl).join(serverPath);
-      out = out.split(protocolRelative).join(serverPath);
-      if (out !== before) rewriteCount += 1;
+  // Direct downloads for media / partial responses (authorized, full body, no Range)
+  for (const [canonical, item] of directMediaQueue) {
+    if (registry.has(canonical)) continue;
+    console.log(`  ↓ download direto (mídia/206): ${item.url}`);
+    const result = await directDownload(item.url, allowlist);
+    if (!result.ok) {
+      failed.push({ url: item.url, route: item.routePath, viewport: item.viewportName, error: `direct-download: ${result.error || `HTTP ${result.status}`}` });
+      recordAcquisition({
+        sourceUrl: item.url,
+        canonical,
+        localPath: null,
+        requestPath: new URL(item.url).pathname,
+        requestQuery: new URL(item.url).search.slice(1),
+        status: result.status || 0,
+        contentType: item.contentType.split(';')[0],
+        kind: item.kind,
+        sizeBytes: 0,
+        sha256: null,
+        acquisitionMethod: 'direct-download',
+        routeDiscovered: item.routePath,
+        interactionDiscovered: 'initial-load',
+        redirectChain: result.chain || item.chain,
+        classification: 'missing',
+      });
+      continue;
     }
-    return out;
-  };
-  for (const record of records) {
-    if (!record.localPath || !['html', 'css'].includes(record.kind)) continue;
-    const abs = path.join(project.outputDir, record.localPath);
-    if (fs.existsSync(abs)) fs.writeFileSync(abs, rewriteText(fs.readFileSync(abs, 'utf8')), 'utf8');
-  }
-  for (const routePath of routes) {
-    const pageFile = path.join(project.outputDir, routeToPageFile(routePath));
-    if (fs.existsSync(pageFile)) fs.writeFileSync(pageFile, rewriteText(fs.readFileSync(pageFile, 'utf8')), 'utf8');
+    const finalUrl = new URL(result.finalUrl);
+    const contentType = result.headers['content-type'] || item.contentType;
+    const kind = kindForMime(contentType);
+    const { entry, classification } = storeBody(result.body, finalUrl, contentType, { kind });
+    const record = {
+      sourceUrl: item.url,
+      canonical: entry ? entry.canonical : canonical,
+      localPath: entry ? entry.localRel.replaceAll(path.sep, '/') : null,
+      requestPath: entry ? entry.requestPath : new URL(item.url).pathname,
+      requestQuery: entry ? entry.requestQuery : new URL(item.url).search.slice(1),
+      status: result.status,
+      contentType: String(contentType).split(';')[0],
+      kind,
+      sizeBytes: result.body.length,
+      sha256: sha256Buffer(result.body),
+      acquisitionMethod: 'direct-download',
+      routeDiscovered: item.routePath,
+      interactionDiscovered: 'initial-load',
+      redirectChain: [...item.chain, ...result.chain],
+      classification,
+      headers: redactHeaders(result.headers),
+    };
+    recordAcquisition(record);
+    if (record.redirectChain.length > 0) redirects.push({ from: item.url, to: result.finalUrl, chain: [...item.chain, ...result.chain, result.finalUrl] });
   }
 
-  // Serving contract
+  // Serving contract v2 (query-aware)
+  const contractAssets = registry
+    .values()
+    .filter((entry) => entry.kind !== 'html')
+    .map((entry) => ({
+      requestPath: entry.requestPath,
+      requestQuery: entry.requestQuery,
+      file: entry.localRel.replaceAll(path.sep, '/'),
+      contentType: entry.contentType,
+      kind: entry.kind,
+      ...(entry.viaRedirect ? { viaRedirect: true } : {}),
+    }));
   const contract = {
+    version: 2,
     host: '127.0.0.1',
     port: 4173,
     routes: routes.map((routePath) => ({
@@ -337,15 +458,26 @@ async function main() {
       file: routeToPageFile(routePath).replaceAll(path.sep, '/'),
       contentType: 'text/html',
     })),
-    assets: Object.fromEntries([...assetsByServerPath.entries()].map(([k, v]) => [k, v.replaceAll(path.sep, '/')])),
-    querySensitiveAssets: false,
+    assets: contractAssets,
+    querySensitiveAssets: true,
     byteRangeSupport: true,
     spaFallback: false,
-    notes: ['Consultas (query strings) são ignoradas na resolução de assets; colisões registradas em KNOWN-GAPS.'],
+    notes: [
+      'Assets com variantes de query exigem correspondência exata de query; queries não declaradas retornam 404.',
+      'Assets sem query são query-insensitive: queries arbitrárias são ignoradas.',
+      'Aliases de redirect servem o conteúdo final (o mirror não reproduz status 30x).',
+    ],
   };
   writeJson(project.files.servingContract, contract);
 
-  // Hashes of every mirrored file
+  // Page metadata for the rewriting phase
+  writeJson(path.join(project.dirs.capture, 'pages-meta.json'), routes.map((routePath) => ({
+    route: routePath,
+    url: new URL(routePath, sourceUrl).toString(),
+    file: routeToPageFile(routePath).replaceAll(path.sep, '/'),
+  })));
+
+  // Hashes of every mirrored file (pre-rewrite; rewrite.js regenerates after rewriting)
   const hashLines = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -380,6 +512,7 @@ async function main() {
     resourcesExternal: 0,
     resourcesBlocked: blocked.length,
     resourcesFailed: failed.length,
+    directDownloads: directMediaQueue.size,
     sizeCapHit,
     acceptanceLevel: 'pending-validation',
   };
@@ -387,11 +520,11 @@ async function main() {
 
   console.log('\n[CAPTURE] Concluída.');
   console.log(`  Recursos locais: ${localCount} | Bloqueados (fora da allowlist): ${blocked.length} | Falhas: ${failed.length}`);
-  console.log(`  Reescritas de URL em HTML/CSS: ${rewriteCount}`);
+  console.log(`  Downloads diretos (mídia/206): ${directMediaQueue.size}`);
   console.log(`  Manifesto: ${project.files.manifest}`);
 }
 
 main().catch((err) => {
-  console.error(`\n[CAPTURE] Falha fatal: ${err.message}`);
-  process.exit(1);
+  const code = /scope\.lock|Escopo não aprovado|autoriz/i.test(err.message) ? EXIT.AUTHORIZATION_DENIED : EXIT.CAPTURE_FAILED;
+  failWith(code, `[CAPTURE] Falha fatal: ${err.message}`);
 });

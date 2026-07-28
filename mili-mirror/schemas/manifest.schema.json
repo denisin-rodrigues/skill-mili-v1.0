@@ -19,6 +19,7 @@
     "resourcesFailed",
     "acceptanceLevel"
   ],
+  "additionalProperties": true,
   "properties": {
     "captureId": { "type": "string" },
     "projectId": { "type": "string" },
@@ -35,6 +36,8 @@
         "version": { "type": "string" }
       }
     },
+    "validationTarget": { "enum": ["local-controlled-fixture", "authorized-site"] },
+    "fixtureId": { "type": ["string", "null"] },
     "routesDeclared": { "type": "integer", "minimum": 0 },
     "routesExercised": { "type": "integer", "minimum": 0 },
     "interactionsDeclared": { "type": "integer", "minimum": 0 },
@@ -45,6 +48,7 @@
     "resourcesExternal": { "type": "integer", "minimum": 0 },
     "resourcesBlocked": { "type": "integer", "minimum": 0 },
     "resourcesFailed": { "type": "integer", "minimum": 0 },
+    "directDownloads": { "type": "integer", "minimum": 0 },
     "sizeCapHit": { "type": "boolean" },
     "acceptanceLevel": {
       "type": "string",

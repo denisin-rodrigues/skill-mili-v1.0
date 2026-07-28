@@ -4,7 +4,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs, resolveProject, requireScopeLock, writeJson, isoNow } from './lib/config.js';
+import { parseArgs, resolveProject, requireScopeLock, isoNow } from './lib/config.js';
+import { validateManifest, formatValidationErrors } from '../validators/index.js';
+import { EXIT, failWith } from './lib/exit-codes.js';
+import { acceptanceSentence } from './lib/acceptance.js';
 
 const SKILL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -21,6 +24,13 @@ function main() {
   const project = resolveProject(args.config || 'mirror.config.yaml');
   const scope = requireScopeLock(project);
   const manifest = readJson(project.files.manifest, {});
+  // Manifest must satisfy the active schema before any report is produced
+  if (Object.keys(manifest).length > 0) {
+    const manifestCheck = validateManifest(manifest);
+    if (!manifestCheck.valid) {
+      failWith(EXIT.INVALID_CONFIG, formatValidationErrors('capture/manifest.json', manifestCheck.errors));
+    }
+  }
   const validation = readJson(project.files.validationResults, {});
   const dependencies = readJson(path.join(project.dirs.blueprint, 'dependencies.json'), null);
 
@@ -70,10 +80,16 @@ function main() {
     '## Falhas de rede / aquisição',
     ...(failures.length ? failures.slice(0, 50).map((f) => `- ${f.url} — ${f.error}`) : ['- nenhuma']),
     '',
-    '## Limitações do método (MVP)',
+    '## Limitações do método',
     '- O HTML servido é o DOM pós-hidratação; scripts capturados podem reaplicar efeitos já presentes no DOM (ex.: duplicar nós inseridos via JS). Se isso quebrar a experiência, usar Editable Recreation.',
-    '- URLs absolutas dentro de arquivos JavaScript NÃO são reescritas (risco de quebrar código); dependências assim ficam registradas como externas.',
-    '- Query strings são ignoradas na resolução de assets pelo servidor local; colisões possíveis em URLs com mesmo path e queries diferentes.',
+    '- JavaScript: apenas referências estáticas literais são reescritas (import/export/dynamic import/Worker/new URL/fetch). Strings arbitrárias e URLs construídas dinamicamente NÃO são reescritas — ver capture/rewrite-report.json.',
+    '- Caminhos estáticos conhecidos fora das posições AST suportadas (ex.: concatenação parcial) não são reescritos.',
+    '- Conteúdo INTERNO de source maps (.map) não é reescrito; o comentário sourceMappingURL só é reescrito quando o .map foi capturado.',
+    '- Páginas HTML são resserializadas pelo parse5 e CSS pelo postcss: formatação/escape podem diferir do original (semântica preservada).',
+    '- Aliases de redirect servem o conteúdo final com 200 (o mirror não reproduz o status 30x).',
+    '- Mídia capturada via download direto autorizado (o navegador entrega apenas fragmentos 206).',
+    '- Classificação (L0–L4) vale APENAS para o alvo e escopo declarados em validation-results.json → classification (ver ADR-002).',
+    '- Schemas de blueprint completo residem em schemas/future/ (PH-004), sem validação ativa em runtime.',
     '- Análise frame a frame de animações, scroll-map e componentes: pós-MVP (classificados como "unexercised").',
     '- Service Workers são detectados mas não replicados (PH-002).',
     '- WebGL/Three.js: apenas sinais registrados (PH-003).',
@@ -128,7 +144,10 @@ function main() {
   fs.writeFileSync(path.join(project.outputDir, 'LAUNCH.md'), launch, 'utf8');
 
   console.log('\nCaptura concluída.\n');
-  console.log(`Classificação: ${classification}`);
+  const classificationMeta = validation?.classification?.acceptanceLevel
+    ? validation.classification
+    : { acceptanceLevel: classification, validationTarget: manifest.validationTarget || 'authorized-site', fixtureId: manifest.fixtureId || null };
+  console.log(`Classificação: ${classification} — ${acceptanceSentence(classificationMeta)}`);
   console.log('Método: Static Mirror');
   console.log(`Rotas declaradas: ${manifest.routesDeclared ?? '?'} | Rotas validadas: ${validation?.totals?.routesOk ?? '?'}`);
   console.log(`Interações declaradas: ${manifest.interactionsDeclared ?? '?'} | Interações validadas: ${manifest.interactionsExercised ?? '?'}`);
@@ -138,4 +157,8 @@ function main() {
   console.log('\nConsulte: REPORT.md, KNOWN-GAPS.md, DEPENDENCIES.md, capture/manifest.json, experience-blueprint/');
 }
 
-main();
+try {
+  main();
+} catch (err) {
+  failWith(EXIT.INTERNAL_ERROR, `[REPORT] Falha fatal: ${err.message}`);
+}

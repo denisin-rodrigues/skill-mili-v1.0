@@ -1,9 +1,15 @@
+config_version: 1
+
 project:
   name: fixture-selftest
   output_dir: .
 
+target:
+  type: local-controlled-fixture
+  fixture_id: robust-assets-fixture
+
 source:
-  url: http://127.0.0.1:51996
+  url: http://127.0.0.1:65475
   authorized_domains:
     - 127.0.0.1
 
@@ -15,6 +21,7 @@ routes:
   include:
     - /
     - /sobre
+    - /produto/detalhe
   exclude: []
 
 viewports:

@@ -8,9 +8,15 @@
     "node": ">=18.17"
   },
   "scripts": {
+    "build": "node scripts/build-check.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"tests/unit/**/*.test.js\"",
     "doctor": "node scripts/doctor.js",
     "guardian": "node scripts/guardian.js",
     "capture": "node scripts/capture.js",
+    "rewrite": "node scripts/rewrite.js",
     "blueprint": "node scripts/blueprint.js",
     "serve": "node server/serve.js",
     "validate": "node scripts/validate.js",
@@ -18,7 +24,19 @@
     "selftest": "node scripts/selftest.js"
   },
   "dependencies": {
+    "acorn": "^8.17.0",
+    "ajv": "^8.20.0",
+    "parse5": "^8.0.1",
     "playwright": "^1.49.0",
+    "postcss": "^8.5.23",
+    "postcss-value-parser": "^4.2.0",
     "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.1.1",
+    "eslint": "^10.8.0",
+    "globals": "^17.7.0",
+    "typescript": "^7.0.2"
   }
 }

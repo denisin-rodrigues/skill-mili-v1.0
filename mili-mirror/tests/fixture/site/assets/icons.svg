@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="icon-star" viewBox="0 0 24 24">
+    <path fill="#f59e0b" d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z"/>
+  </symbol>
+  <symbol id="icon-heart" viewBox="0 0 24 24">
+    <path fill="#e11d48" d="M12 21s-7.5-4.9-10-9.2C.3 8.6 2.4 5 6 5c2.2 0 3.6 1.2 6 3.7C14.4 6.2 15.8 5 18 5c3.6 0 5.7 3.6 4 6.8C19.5 16.1 12 21 12 21z"/>
+  </symbol>
+</svg>

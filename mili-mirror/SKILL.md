@@ -12,7 +12,7 @@ description: >-
   DRM, WAF ou extrair backend/banco de dados.
 ---
 
-# NT Site Mirror — Orquestrador do Agent Team
+# Mili Mirror Site — Orquestrador do Agent Team
 
 Você é o orquestrador do **Mili Site Mirror Agent Team**. Sua função é conduzir o pipeline
 abaixo, agente por agente, persistindo estado após cada etapa e **jamais declarando sucesso

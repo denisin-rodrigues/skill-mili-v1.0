@@ -1,0 +1,11 @@
+/* Importado via @import url('./imported.css') a partir de style.css.
+   A url() abaixo é relativa a ESTE arquivo (/assets/imported.css). */
+.imported-rule {
+  background: url('./img/bg.png');
+  border: 1px solid #334155;
+}
+
+.features h2 {
+  color: #22d3ee;
+  font-size: 1.1rem;
+}

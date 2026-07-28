@@ -1,9 +1,18 @@
 # mirror.config.yaml — Configuração principal do projeto de mirror.
 # Referência completa: docs/ARCHITECTURE.md
+# Validado contra schemas/mirror-config.schema.json pelo Guardian (falha clara se inválido).
+
+config_version: 1
 
 project:
   name: exemplo-mirror
   output_dir: .            # raiz da estrutura capture/, mirror/, experience-blueprint/
+
+# Alvo da validação: L4/L3 valem APENAS para este alvo e escopo (ADR-002).
+# Use local-controlled-fixture apenas para fixtures controlados (self-test).
+target:
+  type: authorized-site
+  # fixture_id: <id>      # obrigatório quando type = local-controlled-fixture
 
 source:
   url: https://exemplo.com

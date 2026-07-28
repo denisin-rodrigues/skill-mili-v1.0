@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nt-site-mirror/schemas/mirror-config.schema.json",
+  "title": "mirror.config.yaml",
+  "description": "Configuração ativa do projeto de mirror. Campos desconhecidos são PERMITIDOS (política de compatibilidade futura, ADR-001); campos obrigatórios e tipos são estritos.",
+  "type": "object",
+  "required": ["project", "source", "routes", "viewports"],
+  "additionalProperties": true,
+  "properties": {
+    "config_version": { "const": 1 },
+    "project": {
+      "type": "object",
+      "required": ["name", "output_dir"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "output_dir": { "type": "string", "minLength": 1 }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["url", "authorized_domains"],
+      "additionalProperties": true,
+      "properties": {
+        "url": { "type": "string", "pattern": "^https?://" },
+        "authorized_domains": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "type": { "enum": ["local-controlled-fixture", "authorized-site"] },
+        "fixture_id": { "type": "string" }
+      }
+    },
+    "mode": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "preferred": { "enum": ["static-mirror"] },
+        "fallback": { "enum": ["editable-recreation"] }
+      }
+    },
+    "routes": {
+      "type": "object",
+      "required": ["include"],
+      "additionalProperties": true,
+      "properties": {
+        "include": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^/" }
+        },
+        "exclude": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "viewports": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "width", "height"],
+        "additionalProperties": true,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "width": { "type": "integer", "minimum": 200, "maximum": 7680 },
+          "height": { "type": "integer", "minimum": 200, "maximum": 7680 }
+        }
+      }
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "rate_limit_requests_per_second": { "type": "number", "exclusiveMinimum": 0 },
+        "max_total_download_gb": { "type": "number", "exclusiveMinimum": 0 },
+        "max_depth": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "interactions": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "scroll": { "type": "boolean" },
+        "hover": { "type": "boolean" },
+        "click_safe_elements": { "type": "boolean" },
+        "forms": { "enum": ["disabled", "preserve"] },
+        "media_playback": { "type": "boolean" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "offline": { "type": "boolean" }
+      }
+    }
+  }
+}

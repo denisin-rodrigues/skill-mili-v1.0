@@ -1,4 +1,4 @@
-# NT Site Mirror — Mili Site Mirror Agent Team
+# Mili Mirror Site — Mili Site Mirror Agent Team
 
 Sistema multiagente para **captura autorizada**, análise, reconstrução editável e validação de
 experiências frontend. Transforma uma URL autorizada em um **baseline local reproduzível,
@@ -95,13 +95,27 @@ verificações `PASS` e classificação **L4**.
 nt-site-mirror/
 ├── SKILL.md            # orquestração do agent team (carregue esta skill)
 ├── agents/             # protocolo dos 12 agentes
-├── templates/          # authorization/config/plan + schemas JSON
-├── scripts/            # guardian, doctor, capture, blueprint, validate, report, selftest
-├── server/serve.js     # servidor local do mirror (byte-range, 404 real)
-├── validators/         # (reservado para validadores JSON-schema, pós-MVP)
-├── install/            # WSL 2 (Windows) e Linux
+├── templates/          # authorization/config/plan + report-template
+├── schemas/            # JSON schemas ATIVOS (com consumidor em runtime)
+│   └── future/         # schemas de fases futuras (sem consumidor — ver README local)
+├── validators/         # validadores reais (ajv) dos schemas ativos
+├── scripts/            # guardian, doctor, capture, rewrite, blueprint, validate, report, selftest
+├── server/serve.js     # servidor local do mirror (byte-range, 404 real, safe-path)
+├── install/            # WSL 2 (Windows) e Linux — ambos com modo --dry-run
 ├── docs/ARCHITECTURE.md
-└── tests/fixture/      # site controlado + projeto de self-test
+├── docs/adr/           # decisões de arquitetura (ADR-001 lint, ADR-002 L4)
+└── tests/              # unit/ (node:test) + fixture/ (site controlado + self-test)
+```
+
+## Qualidade (gates)
+
+```bash
+npm run lint        # ESLint (flat config) — gate obrigatório
+npm run lint:fix
+npm run build       # syntax check de todos os arquivos
+npm run typecheck   # tsc --noEmit (checkJs)
+npm test            # testes unitários (node:test)
+npm run selftest    # integração ponta a ponta
 ```
 
 ## Classificação de honestidade

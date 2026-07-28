@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Guardian (A-001): validates authorization, locks scope and blocks out-of-scope execution.
+// mirror.config.yaml is validated against schemas/mirror-config.schema.json (active schema).
 // Usage: node scripts/guardian.js --config mirror.config.yaml --authorization authorization.yaml
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,6 +8,8 @@ import { parseArgs, loadYaml, resolveProject, writeJson, ensureDir, isoNow } fro
 import { sha256File } from './lib/hash.js';
 import { isLocalhostHost } from './lib/allowlist.js';
 import { SENSITIVE_HEADERS } from './lib/redact.js';
+import { validateMirrorConfig, formatValidationErrors } from '../validators/index.js';
+import { EXIT, failWith } from './lib/exit-codes.js';
 
 const KNOWN_AUTH_TYPES = [
   'owner',
@@ -16,10 +19,10 @@ const KNOWN_AUTH_TYPES = [
   'local-self-declared',
 ];
 
-function fail(reasons) {
+function deny(code, reasons) {
   console.error('\n[GUARDIAN] Autorização NEGADA. Nenhuma captura pode iniciar.');
   for (const reason of reasons) console.error(`  - ${reason}`);
-  process.exit(1);
+  process.exit(code);
 }
 
 function main() {
@@ -27,20 +30,31 @@ function main() {
   const configPath = args.config || 'mirror.config.yaml';
   const authPath = args.authorization || 'authorization.yaml';
 
-  const project = resolveProject(configPath);
+  let project;
+  try {
+    project = resolveProject(configPath);
+  } catch (err) {
+    failWith(EXIT.INVALID_CONFIG, err.message);
+  }
   const { config } = project;
+
+  // Active schema validation of mirror.config.yaml (fail clearly, exit 2)
+  const configCheck = validateMirrorConfig(config);
+  if (!configCheck.valid) {
+    failWith(EXIT.INVALID_CONFIG, formatValidationErrors('mirror.config.yaml', configCheck.errors));
+  }
+
   const problems = [];
+  const domainProblems = [];
 
   let auth;
   try {
     auth = loadYaml(authPath);
   } catch (err) {
-    fail([err.message]);
+    failWith(EXIT.INVALID_CONFIG, err.message);
   }
 
   const sourceUrl = config?.source?.url;
-  if (!sourceUrl) problems.push('mirror.config.yaml: source.url ausente.');
-
   let sourceHost = '';
   try {
     sourceHost = new URL(sourceUrl).hostname.toLowerCase();
@@ -73,14 +87,14 @@ function main() {
   const authDomains = (auth?.authorized_domains || []).map((d) => String(d).toLowerCase());
   const configDomains = (config?.source?.authorized_domains || []).map((d) => String(d).toLowerCase());
   if (!localTarget) {
-    if (authDomains.length === 0) problems.push('authorization.yaml: authorized_domains vazio.');
+    if (authDomains.length === 0) domainProblems.push('authorization.yaml: authorized_domains vazio.');
     if (sourceHost && !authDomains.includes(sourceHost)) {
-      problems.push(`Domínio principal ${sourceHost} não está em authorized_domains da autorização.`);
+      domainProblems.push(`Domínio principal ${sourceHost} não está em authorized_domains da autorização.`);
     }
     for (const domain of configDomains) {
       if (domain.startsWith('*.')) continue;
       if (!authDomains.includes(domain)) {
-        problems.push(`Domínio do config fora da autorização: ${domain}.`);
+        domainProblems.push(`Domínio do config fora da autorização: ${domain}.`);
       }
     }
   }
@@ -97,11 +111,12 @@ function main() {
     }
   }
 
-  if (authType === 'none' || auth?.authorized_actions?.static_asset_capture === false) {
+  if (auth?.authorized_actions?.static_asset_capture === false) {
     problems.push('Sem autorização de captura. Apenas análise pública limitada ou Inspired Transformation seriam permitidos (fora do escopo deste pipeline).');
   }
 
-  if (problems.length > 0) fail(problems);
+  if (domainProblems.length > 0) deny(EXIT.DOMAIN_BLOCKED, domainProblems);
+  if (problems.length > 0) deny(EXIT.AUTHORIZATION_DENIED, problems);
 
   // Approved: lock the scope
   const authAbs = path.resolve(authPath);
@@ -122,6 +137,7 @@ function main() {
     routes: { include: configRoutes, exclude: config?.routes?.exclude || [] },
     actions: auth?.authorized_actions || {},
     viewports: config?.viewports || [],
+    target: config?.target || { type: 'authorized-site' },
     localTarget,
   };
 

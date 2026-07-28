@@ -7,6 +7,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { promisify } from 'node:util';
 import { parseArgs, resolveProject, writeJson, ensureDir, isoNow } from './lib/config.js';
+import { EXIT, failWith } from './lib/exit-codes.js';
 
 const run = promisify(execFile);
 
@@ -35,7 +36,7 @@ async function checkChromium() {
     const version = browser.version();
     await browser.close();
     return version;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -95,8 +96,7 @@ async function main() {
   }
 
   if (!report.ok) {
-    console.error('\n[DOCTOR] Ambiente incompleto. Rode install/linux/install.sh (Linux/WSL) ou install/windows/install-wsl.ps1.');
-    process.exit(1);
+    failWith(EXIT.DEPENDENCY_MISSING, 'Ambiente incompleto. Rode install/linux/install.sh (Linux/WSL) ou install/windows/install-wsl.ps1.');
   }
   console.log('\n[DOCTOR] Ambiente pronto.');
 }

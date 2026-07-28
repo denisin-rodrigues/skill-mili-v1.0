@@ -54,6 +54,11 @@ export function resolveProject(configPath) {
   const root = path.dirname(path.resolve(configPath));
   const config = loadYaml(configPath);
   const outputDir = path.resolve(root, config?.project?.output_dir || '.');
+  // output_dir must stay confined to the project root (central path safety)
+  const rel = path.relative(root, outputDir);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error(`Configuração inválida: project.output_dir escapa da raiz do projeto (${config?.project?.output_dir}).`);
+  }
   return {
     root,
     config,

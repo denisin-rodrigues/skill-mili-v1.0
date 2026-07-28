@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nt-site-mirror/schemas/serving-contract.schema.json",
+  "title": "Serving Contract v2 (query-aware)",
+  "type": "object",
+  "required": ["version", "host", "port", "routes", "assets", "querySensitiveAssets", "byteRangeSupport", "spaFallback"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 2, "description": "Única versão suportada pelo servidor atual." },
+    "host": { "type": "string", "default": "127.0.0.1" },
+    "port": { "type": "integer", "minimum": 0, "maximum": 65535, "default": 4173, "description": "0 = porta efêmera (uso em testes/automação)." },
+    "routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["requestPath", "file", "contentType"],
+        "additionalProperties": false,
+        "properties": {
+          "requestPath": { "type": "string", "pattern": "^/" },
+          "file": { "type": "string", "pattern": "^mirror/" },
+          "contentType": { "type": "string" }
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["requestPath", "requestQuery", "file", "contentType", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "requestPath": { "type": "string", "pattern": "^/" },
+          "requestQuery": { "type": "string" },
+          "file": { "type": "string", "pattern": "^mirror/" },
+          "contentType": { "type": "string" },
+          "kind": { "type": "string" },
+          "viaRedirect": { "type": "boolean" }
+        }
+      }
+    },
+    "querySensitiveAssets": { "type": "boolean" },
+    "byteRangeSupport": { "type": "boolean" },
+    "spaFallback": { "type": "boolean", "default": false },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

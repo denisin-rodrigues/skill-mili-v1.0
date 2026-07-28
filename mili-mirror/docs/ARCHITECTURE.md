@@ -1,4 +1,4 @@
-# Arquitetura — NT Site Mirror Agent Team
+# Arquitetura — Mili Mirror Site Agent Team
 
 Estilo: **pipeline multiagente com estado persistente**. Cada fase produz artefatos
 imutáveis que alimentam a fase seguinte; evidências anteriores não são alteradas
@@ -44,9 +44,10 @@ report.js (HandoffReporter) ──────────► REPORT.md · LAUNC
 | Artefato | Produtor → Consumidores | Schema |
 |----------|------------------------|--------|
 | `scope.lock.json` | guardian → todos | status, domains, routes, viewports, authorizationHash |
-| `serving-contract.json` | capture → serve/validate | `templates/serving-contract.schema.json` |
-| `manifest.json` | capture → report | `templates/manifest.schema.json` |
-| `experience-blueprint/*.json` | blueprint → recreation/QA | `templates/experience-blueprint.schema.json` |
+| `serving-contract.json` | capture → serve/validate | `schemas/serving-contract.schema.json` (ativo) |
+| `manifest.json` | capture → report | `schemas/manifest.schema.json` (ativo) |
+| `mirror.config.yaml` | usuário → guardian | `schemas/mirror-config.schema.json` (ativo) |
+| `experience-blueprint/*.json` | blueprint → recreation/QA | `schemas/future/experience-blueprint.schema.json` (PH-004, sem consumidor) |
 | `validation-results.json` | validate → report | por rota/viewport + totais + classification |
 | `acquisition-records.jsonl` | capture → blueprint/report | ver PRD (assetRecordExample) |
 

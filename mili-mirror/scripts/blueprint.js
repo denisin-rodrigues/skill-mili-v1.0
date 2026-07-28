@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs, resolveProject, requireScopeLock, writeJson, isoNow, sanitizePathname } from './lib/config.js';
+import { EXIT, failWith } from './lib/exit-codes.js';
 
 function readRecords(project) {
   if (!fs.existsSync(project.files.acquisitionRecords)) return [];
@@ -153,4 +154,8 @@ function main() {
   console.log(`  Páginas: ${pages.length} | Mídia: ${media.length} | Hosts bloqueados: ${blockedHosts.length}`);
 }
 
-main();
+try {
+  main();
+} catch (err) {
+  failWith(EXIT.INTERNAL_ERROR, `[BLUEPRINT] Falha fatal: ${err.message}`);
+}
