@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DIRS = ['scripts', 'server', 'tests/unit'];
+const DIRS = ['scripts', 'server', 'browser', 'validators', 'tests/unit'];
 
 function collect(dir) {
   const abs = path.join(ROOT, dir);

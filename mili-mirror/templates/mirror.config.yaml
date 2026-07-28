@@ -72,3 +72,26 @@ validation:
   interactions: true
   responsive: true
   offline: true
+
+# Estratégia de runtime: Chromium Playwright é sempre a fonte oficial de aquisição.
+# Chrome e Firefox são apenas validações secundárias e nunca alteram o manifesto oficial.
+browser:
+  acquisition:
+    engine: chromium
+    distribution: playwright
+    headless: true
+    use_cdp: true
+    required: true
+  production_validation:
+    engine: chromium
+    channel: chrome
+    required: false
+  compatibility_validation:
+    firefox:
+      enabled: false
+      required: false
+    webkit:
+      enabled: false
+      required: false
+  passes:
+    warm_runtime: false

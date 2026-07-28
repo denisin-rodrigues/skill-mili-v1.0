@@ -38,8 +38,11 @@ Instaladores assistidos: `install/linux/install.sh` (apt + node + playwright) e
 Verifique o ambiente:
 
 ```bash
-node scripts/doctor.js
+node scripts/doctor.js --browsers
 ```
+
+O diagnóstico confirma o Chromium oficial e o acesso CDP, detecta Chrome Stable/Firefox
+opcionais e lista somente os perfis persistentes pertencentes ao Mili.
 
 ## Quickstart
 
@@ -64,7 +67,13 @@ node scripts/doctor.js
    node scripts/blueprint.js --config mirror.config.yaml
    node scripts/validate.js --config mirror.config.yaml
    node scripts/validate.js --config mirror.config.yaml --offline
+   node scripts/validate.js --config mirror.config.yaml --browser chrome
+   node scripts/validate.js --config mirror.config.yaml --browser firefox
+   node scripts/validate.js --config mirror.config.yaml --all-enabled-browsers
    ```
+
+   Resultados de Chrome/Firefox ficam em `capture/browser-validation/` e nunca alteram o
+   manifesto oficial. A matriz completa é gravada em `capture/browser-matrix.json`.
 
 5. **Execute o mirror**:
 
@@ -78,6 +87,14 @@ node scripts/doctor.js
    ```bash
    node scripts/report.js --config mirror.config.yaml
    ```
+
+Perfis de cache warm, quando habilitados, ficam exclusivamente em
+`<output>/.mili/browser-profiles`. Para inspecionar ou limpar apenas essa área:
+
+```bash
+node scripts/browser.js list-profiles --config mirror.config.yaml
+node scripts/browser.js clean-profiles --config mirror.config.yaml
+```
 
 ## Self-test (prova o pipeline ponta a ponta em localhost)
 
@@ -99,6 +116,7 @@ nt-site-mirror/
 ├── schemas/            # JSON schemas ATIVOS (com consumidor em runtime)
 │   └── future/         # schemas de fases futuras (sem consumidor — ver README local)
 ├── validators/         # validadores reais (ajv) dos schemas ativos
+├── browser/            # policy, contextos, detecção, CDP centralizado e browser matrix
 ├── scripts/            # guardian, doctor, capture, rewrite, blueprint, validate, report, selftest
 ├── server/serve.js     # servidor local do mirror (byte-range, 404 real, safe-path)
 ├── install/            # WSL 2 (Windows) e Linux — ambos com modo --dry-run

@@ -21,7 +21,7 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ['scripts/**/*.js', 'server/**/*.js', 'tests/**/*.js', 'eslint.config.mjs'],
+    files: ['scripts/**/*.js', 'server/**/*.js', 'browser/**/*.js', 'validators/**/*.js', 'tests/**/*.js', 'eslint.config.mjs'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

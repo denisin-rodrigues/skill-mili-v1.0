@@ -102,6 +102,69 @@
       "properties": {
         "offline": { "type": "boolean" }
       }
+    },
+    "browser": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "acquisition": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "engine": { "const": "chromium", "description": "Invariante: aquisição é sempre Chromium." },
+            "distribution": { "const": "playwright", "description": "Invariante: distribuição oficial é Playwright." },
+            "headless": { "type": "boolean" },
+            "use_cdp": { "type": "boolean" },
+            "required": { "const": true }
+          }
+        },
+        "production_validation": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "engine": { "const": "chromium" },
+            "channel": { "const": "chrome" },
+            "required": { "type": "boolean" }
+          }
+        },
+        "compatibility_validation": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "firefox": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "required": { "type": "boolean" }
+              }
+            },
+            "webkit": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "enabled": { "const": false, "description": "Reservado: WebKit não é suportado nesta versão." },
+                "required": { "const": false }
+              }
+            }
+          }
+        },
+        "passes": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "warm_runtime": { "type": "boolean" }
+          }
+        },
+        "profiles": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "clean": { "type": "object", "additionalProperties": true },
+            "warm": { "type": "object", "additionalProperties": true }
+          }
+        }
+      }
     }
   }
 }

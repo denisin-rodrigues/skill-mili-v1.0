@@ -12,5 +12,5 @@
     "types": ["node"],
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["scripts/**/*.js", "server/**/*.js", "tests/unit/**/*.js"]
+  "include": ["scripts/**/*.js", "server/**/*.js", "browser/**/*.js", "validators/**/*.js", "tests/unit/**/*.js"]
 }

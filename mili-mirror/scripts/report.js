@@ -39,7 +39,8 @@ function main() {
     : [];
   const failures = readJson(path.join(project.dirs.logs, 'network-failures.json'), []);
   const blockedHosts = [...new Set(blocked.map((b) => new URL(b.url).hostname))];
-  const classification = validation?.classification?.level || manifest.acceptanceLevel || 'pending-validation';
+  const classification = validation?.classification?.acceptanceLevel || manifest.acceptanceLevel || 'pending-validation';
+  const browserMatrix = readJson(path.join(project.dirs.capture, 'browser-matrix.json'), null);
 
   const templatePath = path.join(SKILL_ROOT, 'templates', 'report-template.md');
   const template = fs.readFileSync(templatePath, 'utf8');
@@ -62,7 +63,28 @@ function main() {
     byteRange: validation?.byteRange ? `HTTP ${validation.byteRange.status} em ${validation.byteRange.asset}` : 'não testado',
     offlineValidated: classification === 'L4' ? 'sim' : 'não',
   });
-  fs.writeFileSync(path.join(project.outputDir, 'REPORT.md'), report, 'utf8');
+  // Browser matrix section (Browser Runtime Strategy): official source + every pass
+  let browserSection = '';
+  if (browserMatrix) {
+    const rows = browserMatrix.passes.map((p) => `| ${p.id} | ${p.engine}${p.channel ? ` (${p.channel})` : ''} | ${p.status} | ${p.officialAcquisition ? 'sim' : 'não'} | ${p.reason || '—'} |`);
+    browserSection = [
+      '',
+      '## Navegadores (browser matrix)',
+      '',
+      `- Fonte oficial de aquisição: **${browserMatrix.acquisitionSource}**${manifest.browser?.version ? ` (versão ${manifest.browser.version}, playwright ${manifest.browser.playwrightVersion})` : ''}`,
+      `- Contexto oficial: ${manifest.browser?.contextMode || 'clean'} | cache: ${manifest.browser?.cacheState || 'clean'} | CDP: ${manifest.browser?.cdpEnabled ? 'habilitado' : 'desabilitado'} | SW policy: ${manifest.browser?.serviceWorkerPolicy || 'inspect'}`,
+      `- Validações secundárias (chrome/firefox) NUNCA alteram o manifesto oficial; artefatos em capture/browser-validation/.`,
+      '',
+      '| Passe | Engine | Status | Oficial | Motivo/Nota |',
+      '| --- | --- | --- | --- | --- |',
+      ...rows,
+      '',
+    ].join('\n');
+    const executed = browserMatrix.passes.filter((p) => p.status === 'passed').length;
+    const skipped = browserMatrix.passes.filter((p) => ['skipped', 'disabled'].includes(p.status)).length;
+    console.log(`Navegadores: ${executed} passes executados, ${skipped} ignorados/desabilitados (ver capture/browser-matrix.json)`);
+  }
+  fs.writeFileSync(path.join(project.outputDir, 'REPORT.md'), report + browserSection, 'utf8');
 
   const gaps = [
     '# KNOWN-GAPS — Lacunas conhecidas',
@@ -89,6 +111,9 @@ function main() {
     '- Aliases de redirect servem o conteúdo final com 200 (o mirror não reproduz o status 30x).',
     '- Mídia capturada via download direto autorizado (o navegador entrega apenas fragmentos 206).',
     '- Classificação (L0–L4) vale APENAS para o alvo e escopo declarados em validation-results.json → classification (ver ADR-002).',
+    '- WebKit: reservado (não implementado). Brave: não suportado como aquisição (apenas validação opcional futura).',
+    '- Chrome Stable e Firefox são validações secundárias: não alteram manifesto nem nível oficial do Chromium; suporte cross-browser NÃO é declarado com base em fixture.',
+    '- Service Workers: inspeção estrutural apenas (pass 3, quando habilitado); replicação é PH-002.',
     '- Schemas de blueprint completo residem em schemas/future/ (PH-004), sem validação ativa em runtime.',
     '- Análise frame a frame de animações, scroll-map e componentes: pós-MVP (classificados como "unexercised").',
     '- Service Workers são detectados mas não replicados (PH-002).',

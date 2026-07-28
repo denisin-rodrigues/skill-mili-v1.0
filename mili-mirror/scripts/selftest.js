@@ -7,6 +7,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mimeForPath } from './lib/mime.js';
@@ -15,7 +16,9 @@ import { EXIT, failWith } from './lib/exit-codes.js';
 
 const SKILL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURE_SITE = path.join(SKILL_ROOT, 'tests', 'fixture', 'site');
-const FIXTURE_PROJECT = path.join(SKILL_ROOT, 'tests', 'fixture', 'project');
+// Generated evidence belongs to a new temporary project. This keeps the self-test
+// from deleting ignored/untracked artifacts inside the repository checkout.
+const FIXTURE_PROJECT = fs.mkdtempSync(path.join(os.tmpdir(), 'mili-mirror-selftest-'));
 const LOG_FILE = path.join(FIXTURE_PROJECT, 'selftest.log');
 
 function serveFixture() {
@@ -145,6 +148,7 @@ async function httpChecks() {
 }
 
 async function main() {
+  console.log(`[SELFTEST] Projeto temporário isolado: ${FIXTURE_PROJECT}`);
   // V-07: clean generated outputs so stale files can never mask missing-file failures
   for (const rel of ['capture', 'mirror', 'experience-blueprint']) {
     fs.rmSync(path.join(FIXTURE_PROJECT, rel), { recursive: true, force: true });
@@ -218,6 +222,34 @@ validation:
   console: true
   responsive: true
   offline: true
+
+browser:
+  acquisition:
+    engine: chromium
+    distribution: playwright
+    headless: true
+    use_cdp: true
+    required: true
+  production_validation:
+    engine: chromium
+    channel: chrome
+    required: false
+  compatibility_validation:
+    firefox:
+      enabled: false
+      required: false
+    webkit:
+      enabled: false
+      required: false
+  passes:
+    warm_runtime: false
+  profiles:
+    clean:
+      persistent: false
+      cache_state: clean
+    warm:
+      persistent: true
+      cache_state: warm
 `,
     'utf8',
   );
@@ -257,11 +289,14 @@ valid_until: 2027-12-31
 
   try {
     await runStep('GUARDIAN', 'scripts/guardian.js', ['--config', configPath, '--authorization', authPath]);
+    await runStep('DOCTOR BROWSERS', 'scripts/doctor.js', ['--config', configPath, '--browsers']);
     await runStep('CAPTURE', 'scripts/capture.js', ['--config', configPath]);
     await runStep('REWRITE', 'scripts/rewrite.js', ['--config', configPath]);
     await runStep('BLUEPRINT', 'scripts/blueprint.js', ['--config', configPath]);
     await runStep('VALIDATE', 'scripts/validate.js', ['--config', configPath]);
     await runStep('VALIDATE OFFLINE', 'scripts/validate.js', ['--config', configPath, '--offline']);
+    await runStep('VALIDATE ALL BROWSERS', 'scripts/validate.js', ['--config', configPath, '--all-enabled-browsers']);
+    await runStep('BROWSER CLEAN-PROFILES', 'scripts/browser.js', ['clean-profiles', '--config', configPath]);
     await runStep('REPORT', 'scripts/report.js', ['--config', configPath]);
   } finally {
     server.close();
@@ -296,6 +331,15 @@ valid_until: 2027-12-31
   const videoRecord = records.find((r) => r.kind === 'video');
   const jsEvidence = rewriteReport.entries.filter((e) => e.referenceType.startsWith('js:'));
   const requiredEntryFields = ['sourceFile', 'originalUrl', 'originalValue', 'rewrittenValue', 'referenceType', 'strategy', 'confidence', 'status'];
+
+  // Browser runtime strategy artifacts
+  const matrix = readJson('capture/browser-matrix.json');
+  const passById = Object.fromEntries(matrix.passes.map((p) => [p.id, p]));
+  const chromePass = passById['chrome-production-validation'];
+  const chromeResultsPath = path.join(FIXTURE_PROJECT, 'capture', 'browser-validation', 'chrome', 'results.json');
+  const chromeResults = fs.existsSync(chromeResultsPath) ? JSON.parse(fs.readFileSync(chromeResultsPath, 'utf8')) : null;
+  const cdpFile = path.join(FIXTURE_PROJECT, 'capture', 'cdp', 'cdp-index-desktop.json');
+  const cdpSummary = fs.existsSync(cdpFile) ? JSON.parse(fs.readFileSync(cdpFile, 'utf8')) : null;
 
   const checks = [
     ['Autorização aprovada (scope.lock)', fs.existsSync(path.join(FIXTURE_PROJECT, 'scope.lock.json'))],
@@ -334,6 +378,18 @@ valid_until: 2027-12-31
     ['HTTP: URL codificada 200', http.encodedUrl === 200],
     ['HTTP: caracteres especiais 200', http.specialChars === 200],
     ['HTTP: ausente → 404 real', http.missing === 404],
+    ['Manifesto: fonte oficial é playwright-chromium com versões registradas', manifest.browser?.engine === 'chromium' && manifest.browser?.distribution === 'playwright' && Boolean(manifest.browser?.version) && Boolean(manifest.browser?.playwrightVersion)],
+    ['Manifesto: contexto clean + CDP registrados', manifest.browser?.contextMode === 'clean' && manifest.browser?.cacheState === 'clean' && manifest.browser?.cdpEnabled === true],
+    ['Browser matrix gerada com fonte oficial', matrix.acquisitionSource === 'playwright-chromium'],
+    ['Matrix contém somente os seis passes modelados', matrix.passes.length === 6 && !passById['chromium-online-validation']],
+    ['Matrix: passes de aquisição oficiais passed', passById['chromium-clean-discovery']?.status === 'passed' && passById['chromium-clean-discovery']?.officialAcquisition === true && passById['chromium-interaction-discovery']?.status === 'passed' && passById['chromium-interaction-discovery']?.officialAcquisition === true],
+    ['Matrix: validação offline chromium passed', passById['chromium-offline-validation']?.status === 'passed'],
+    ['Matrix: warm runtime desabilitado por padrão', passById['chromium-warm-runtime']?.status === 'disabled'],
+    ['Matrix: Chrome Stable passed ou skipped com motivo', ['passed', 'skipped'].includes(chromePass?.status) && (chromePass?.status !== 'skipped' || Boolean(chromePass?.reason))],
+    ['Matrix: Firefox disabled por padrão', passById['firefox-compatibility']?.status === 'disabled'],
+    ['CDP: sessão registrou rede com headers mascarados', cdpSummary?.counts?.requests > 0 && !JSON.stringify(cdpSummary).toLowerCase().includes('cookie:')],
+    ['Chrome secundário NÃO altera manifesto oficial', !chromeResults || (chromeResults.officialAcquisition === false && manifest.browser?.distribution === 'playwright')],
+    ['Validação oficial continua L4 após passes secundários', validation.classification.acceptanceLevel === 'L4'],
   ];
 
   console.log('\n======================================== RESULTADO ========================================');

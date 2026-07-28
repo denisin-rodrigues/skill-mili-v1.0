@@ -20,6 +20,7 @@
     "blueprint": "node scripts/blueprint.js",
     "serve": "node server/serve.js",
     "validate": "node scripts/validate.js",
+    "browser": "node scripts/browser.js",
     "report": "node scripts/report.js",
     "selftest": "node scripts/selftest.js"
   },

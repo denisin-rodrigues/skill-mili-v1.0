@@ -28,6 +28,11 @@ import { kindForMime } from './lib/mime.js';
 import { canonicalizeUrl } from './lib/url-resolver.js';
 import { AssetRegistry } from './lib/asset-store.js';
 import { EXIT, failWith } from './lib/exit-codes.js';
+import { resolveBrowserPolicy, PASS_DEFINITIONS } from '../browser/browser-policy.js';
+import { createCleanContext, createPersistentContext } from '../browser/context-factory.js';
+import { CdpSession } from '../browser/cdp-session.js';
+import { upsertPass, PASS_STATUS } from '../browser/matrix.js';
+import { playwrightVersion } from '../browser/detect.js';
 
 const MAX_SCROLL_STEPS = 80;
 const SCROLL_DELAY_MS = 250;
@@ -107,6 +112,7 @@ async function main() {
 
   const sourceUrl = config.source.url;
   const allowlist = new Allowlist(scope.domains);
+  const browserPolicy = resolveBrowserPolicy(config);
   const routes = args.routes ? String(args.routes).split(',').map((r) => r.trim()) : scope.routes.include;
   const viewports = scope.viewports?.length
     ? scope.viewports
@@ -138,11 +144,17 @@ async function main() {
     .filter(([, v]) => v === true)
     .map(([k]) => k);
   const interactionsExercised = new Set();
+  let discoveryFailures = 0;
+  let interactionAttempts = 0;
+  let interactionFailures = 0;
 
   console.log(`[CAPTURE] Origem: ${sourceUrl}`);
   console.log(`[CAPTURE] Rotas: ${routes.join(', ')} | Viewports: ${viewports.map((v) => v.name).join(', ')}`);
+  console.log(`[CAPTURE] Navegador oficial: ${browserPolicy.acquisition.engine} (${browserPolicy.acquisition.distribution}) | CDP: ${browserPolicy.acquisition.useCdp ? 'on' : 'off'} | contexto: clean`);
 
-  const browser = await chromium.launch({ headless: !args.headed });
+  // Official acquisition browser: bundled Playwright Chromium (browser-policy.js)
+  const headless = args.headed ? false : browserPolicy.acquisition.headless;
+  const browser = await chromium.launch({ headless, timeout: browserPolicy.acquisition.timeoutMs });
   const browserVersion = browser.version();
 
   const recordAcquisition = (record) => {
@@ -165,17 +177,21 @@ async function main() {
     return { entry, stored: true, classification: 'captured' };
   };
 
+  try {
   for (const viewport of viewports) {
     for (const routePath of routes) {
       const target = new URL(routePath, sourceUrl).toString();
       const tag = `${routePath === '/' ? 'index' : sanitizePathname(routePath)}-${viewport.name}`;
       console.log(`\n[CAPTURE] ${target} @ ${viewport.name} (${viewport.width}x${viewport.height})`);
 
-      const context = await browser.newContext({
+      // PASS 1+2: clean context — fresh cookies/storage per route+viewport (browser-policy)
+      const context = await createCleanContext(browser, {
         viewport: { width: viewport.width, height: viewport.height },
-        ignoreHTTPSErrors: true,
       });
+      let cdp = null;
+      try {
       const page = await context.newPage();
+      if (browserPolicy.acquisition.useCdp) cdp = await CdpSession.attach(page);
       consoleByRoute[tag] = [];
       const pendingWrites = [];
       let lastRequestAt = 0;
@@ -340,14 +356,17 @@ async function main() {
         await page.goto(target, { waitUntil: 'load', timeout: 60000 });
         navigated = true;
       } catch (err) {
+        discoveryFailures += 1;
         failed.push({ url: target, route: routePath, viewport: viewport.name, error: `navigation: ${err.message}` });
       }
 
       if (navigated && config?.interactions?.scroll !== false) {
+        interactionAttempts += 1;
         try {
           await exerciseScroll(page, viewport.height);
           interactionsExercised.add('scroll');
         } catch (err) {
+          interactionFailures += 1;
           failed.push({ url: target, route: routePath, viewport: viewport.name, error: `scroll: ${err.message}` });
         }
       }
@@ -357,6 +376,7 @@ async function main() {
       try {
         html = await page.content();
       } catch (err) {
+        discoveryFailures += 1;
         failed.push({ url: target, route: routePath, viewport: viewport.name, error: `content: ${err.message}` });
       }
       if (html) {
@@ -365,6 +385,7 @@ async function main() {
         try {
           await page.screenshot({ path: path.join(project.dirs.screenshots, `${tag}.png`), fullPage: true });
         } catch (err) {
+          discoveryFailures += 1;
           failed.push({ url: target, route: routePath, viewport: viewport.name, error: `screenshot: ${err.message}` });
         }
       }
@@ -378,12 +399,78 @@ async function main() {
 
       await Promise.allSettled(pendingWrites);
       writeJson(path.join(project.dirs.logs, `console-${tag}.json`), consoleByRoute[tag]);
-      await context.close();
+      if (cdp) {
+        await cdp.collectServiceWorkerTargets().catch(() => {});
+        writeJson(path.join(project.dirs.capture, 'cdp', `cdp-${tag}.json`), cdp.summary());
+      }
+      } finally {
+        await cdp?.close().catch(() => {});
+        await context.close().catch(() => {});
+      }
       console.log(`  → ${records.length} recursos acumulados | bloqueados: ${blocked.length} | falhas: ${failed.length}`);
     }
   }
+  } finally {
+    await browser.close().catch(() => {});
+  }
 
-  await browser.close();
+  // PASS 3 — Chromium Warm Runtime (only when enabled): exclusive persistent profile,
+  // Service Worker inspection. Never uses the user's personal profile.
+  const warmPassDef = PASS_DEFINITIONS.find((p) => p.id === 'chromium-warm-runtime');
+  if (browserPolicy.passes.warmRuntime) {
+    console.log('\n[CAPTURE] PASS 3 (warm runtime): perfil exclusivo persistente...');
+    const { context: warmContext, dir: warmDir } = await createPersistentContext(chromium, {
+      outputDir: project.outputDir,
+      profileName: 'warm',
+      viewport: { width: viewports[0].width, height: viewports[0].height },
+      headless,
+    });
+    const swReport = { profileDir: warmDir, cacheState: 'warm', routes: [] };
+    let warmFailures = 0;
+    try {
+      for (const routePath of routes) {
+        const target = new URL(routePath, sourceUrl).toString();
+        const page = await warmContext.newPage();
+        let registrations = [];
+        try {
+          await page.goto(target, { waitUntil: 'load', timeout: browserPolicy.acquisition.timeoutMs });
+          registrations = await page.evaluate(() => (navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then((regs) => regs.map((r) => ({ scope: r.scope, scriptURL: r.active?.scriptURL || null }))) : []));
+        } catch (err) {
+          warmFailures += 1;
+          swReport.routes.push({ route: routePath, serviceWorkers: [], error: err.message });
+          continue;
+        } finally {
+          await page.close().catch(() => {});
+        }
+        swReport.routes.push({ route: routePath, serviceWorkers: registrations });
+      }
+    } finally {
+      await warmContext.close().catch(() => {});
+    }
+    writeJson(path.join(project.dirs.capture, 'service-worker-report.json'), swReport);
+    upsertPass(project, {
+      id: warmPassDef.id,
+      order: warmPassDef.order,
+      engine: 'chromium',
+      distribution: 'playwright',
+      status: warmFailures === 0 ? PASS_STATUS.PASSED : PASS_STATUS.FAILED,
+      officialAcquisition: false,
+      contextMode: 'persistent',
+      cacheState: 'warm',
+      profileDir: warmDir,
+      details: { routes: routes.length, failures: warmFailures },
+    });
+  } else {
+    upsertPass(project, {
+      id: warmPassDef.id,
+      order: warmPassDef.order,
+      engine: 'chromium',
+      distribution: 'playwright',
+      status: PASS_STATUS.DISABLED,
+      reason: 'browser.passes.warm_runtime desabilitado na configuração',
+      officialAcquisition: false,
+    });
+  }
 
   // Direct downloads for media / partial responses (authorized, full body, no Range)
   for (const [canonical, item] of directMediaQueue) {
@@ -501,7 +588,22 @@ async function main() {
     source: sourceUrl,
     authorizationHash: scope.authorizationHash,
     toolVersion: '1.0.0',
-    browser: { name: 'chromium', version: browserVersion },
+    browser: {
+      // Official acquisition source (browser-policy.js): bundled Playwright Chromium
+      name: 'chromium',
+      engine: browserPolicy.acquisition.engine,
+      distribution: browserPolicy.acquisition.distribution,
+      version: browserVersion,
+      playwrightVersion: playwrightVersion(),
+      headless,
+      os: process.platform,
+      arch: process.arch,
+      viewports: viewports.map((v) => ({ name: v.name, width: v.width, height: v.height })),
+      contextMode: 'clean',
+      cacheState: 'clean',
+      cdpEnabled: browserPolicy.acquisition.useCdp,
+      serviceWorkerPolicy: browserPolicy.acquisition.serviceWorkerPolicy,
+    },
     routesDeclared: routes.length,
     routesExercised: routes.length,
     interactionsDeclared: interactionsDeclared.length,
@@ -517,6 +619,27 @@ async function main() {
     acceptanceLevel: 'pending-validation',
   };
   writeJson(project.files.manifest, manifest);
+
+  // Browser matrix: official acquisition passes (1 = clean discovery, 2 = interaction)
+  for (const passDef of PASS_DEFINITIONS.filter((p) => p.officialAcquisition)) {
+    const isDiscovery = passDef.id === 'chromium-clean-discovery';
+    const skipped = !isDiscovery && interactionAttempts === 0;
+    const failures = isDiscovery ? discoveryFailures : interactionFailures;
+    upsertPass(project, {
+      id: passDef.id,
+      order: passDef.order,
+      engine: 'chromium',
+      distribution: 'playwright',
+      status: skipped ? PASS_STATUS.SKIPPED : failures === 0 ? PASS_STATUS.PASSED : PASS_STATUS.FAILED,
+      reason: skipped ? 'nenhuma interação de descoberta habilitada ou executável' : undefined,
+      officialAcquisition: true,
+      contextMode: 'clean',
+      cacheState: 'clean',
+      details: isDiscovery
+        ? { executions: routes.length * viewports.length, failures: discoveryFailures }
+        : { attempts: interactionAttempts, failures: interactionFailures },
+    });
+  }
 
   console.log('\n[CAPTURE] Concluída.');
   console.log(`  Recursos locais: ${localCount} | Bloqueados (fora da allowlist): ${blocked.length} | Falhas: ${failed.length}`);
