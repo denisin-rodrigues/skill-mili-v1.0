@@ -2,8 +2,14 @@
 
 **Propósito**: reconstruir a experiência em código limpo, editável, organizado e reutilizável.
 
-**Status no MVP**: agente **não executado** (PH-004). Este arquivo define o protocolo para
-quando a recriação for acionada — pelas condições abaixo ou por pedido do usuário.
+**Status**: fatias executáveis da PH-004. O comando `scripts/recreate.js` materializa Header,
+Hero, seção institucional e, quando declarada, uma galeria de projetos a partir de um plano
+explícito; `scripts/update-recreation-content.js` atualiza conteúdo/tema/estado de uma Recreation
+já existente quando o plano evolui (ex.: cases adicionados depois), sem tocar no scaffold.
+Projetos que declarem `image`, `imageAlt` e `detail` juntos ganham uma rota de case dedicada
+(`/work/<slug>`); `scripts/validate-recreation.js` valida desktop, mobile, movimento reduzido,
+todos os projetos declarados e cada rota de case. WebGL e editor visual permanecem fora destas
+fatias e devem constar em `recreation-state.json`.
 
 ## Condições de ativação (M-002 / CP-004)
 
@@ -42,8 +48,37 @@ Playwright para validação.
 
 ## Classificação
 
-Tudo que sai da recriação é `reconstructed` ou `approximated` — **nunca** apresentado como
-código original recuperado. Nível alvo: **LR RecreatedAndValidated**.
+Componentes da recriação são `reconstructed` ou `approximated` — **nunca** apresentados como
+código original recuperado. Assets autorizados reutilizados em modo Hybrid mantêm a classificação
+`captured`, com SHA-256 e origem no mapa. Nível alvo: **LR RecreatedAndValidated** para o escopo
+de seções declarado; `completeSite: false` enquanto houver itens em `notImplemented`.
+
+## Comandos da fatia ativa
+
+```bash
+node scripts/recreate.js --config <mirror.config.yaml> --plan <recreation-plan.json>
+cd recreation && npm ci && npm run build
+node scripts/validate-recreation.js --config <mirror.config.yaml>
+```
+
+O gerador recusa planos fora da raiz autorizada, assets com path traversal e qualquer tentativa
+de sobrescrever uma pasta de Recreation que já contenha arquivos.
+
+Quando o plano evolui depois da primeira geração (ex.: mídia de cases adquirida via
+`scripts/acquire-recreation-media.js` e adicionada ao plano), atualize sem regerar o scaffold:
+
+```bash
+node scripts/update-recreation-content.js --config <mirror.config.yaml> --plan <recreation-plan.json>
+cd recreation && npm run build
+node scripts/validate-recreation.js --config <mirror.config.yaml>
+node scripts/compare-recreation-visual.js --config <mirror.config.yaml>
+```
+
+`compare-recreation-visual.js` produz um sinal aproximado de similaridade estrutural entre os
+screenshots do mirror original (`capture/screenshots/`) e da Recreation (`recreation/validation/`).
+É evidência suplementar (CP-001 EvidenceOverAppearance): não é gate de LR/LP e sinaliza
+explicitamente quando o screenshot original está achatado (ex.: preloader de uma captura L0),
+caso em que o score não deve ser lido como qualidade da Recreation.
 
 ## Critérios de aceite (quando ativo)
 

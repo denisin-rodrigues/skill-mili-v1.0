@@ -2488,7 +2488,7 @@ Consulte:
 
   <finalProductStatement>
     <statement>
-      O NT Site Mirror Agent Team deverá transformar uma URL autorizada em uma investigação
+      O Mili Mirror Site Agent Team deverá transformar uma URL autorizada em uma investigação
       técnica completa, um baseline local reproduzível e, quando solicitado, uma versão editável
       capaz de preservar a essência da experiência.
     </statement>

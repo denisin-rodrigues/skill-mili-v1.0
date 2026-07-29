@@ -8,7 +8,7 @@ validado, documentado e editável**.
 > Ela não contorna autenticação, CAPTCHA, paywall, DRM, WAF ou anti-bot, não extrai backend ou
 > banco de dados e não recupera repositórios. Sem autorização, o Guardian bloqueia a captura.
 
-## O que o MVP entrega (PH-001)
+## O que o núcleo entrega
 
 - Abertura do site em **Chromium real** (Playwright) com interceptação de rede por rota.
 - Descoberta de **recursos tardios** via scroll incremental (lazy assets, dynamic imports observados).
@@ -18,9 +18,13 @@ validado, documentado e editável**.
   proteção contra path traversal e binding em 127.0.0.1.
 - Validação **desktop + mobile**, console, rede, arquivos ausentes e **modo offline**.
 - **Experience Blueprint inicial** + relatório honesto com lacunas conhecidas (KNOWN-GAPS).
+- **Editable Recreation, fatias ativas da PH-004**: projeto React/Vite gerado por plano explícito,
+  conteúdo, tema e projetos separados, assets autorizados em modo Hybrid, mapa de evidências,
+  cases individuais (`/work/<slug>`) e validação Playwright desktop/mobile/`prefers-reduced-motion`
+  + rotas de case. Comparação visual aproximada (não-gate) entre mirror original e Recreation.
 
 Roadmap pós-MVP: Service Workers/dynamic imports avançados (PH-002), WebGL/Three.js (PH-003),
-Editable Recreation (PH-004), editor visual (PH-005), produto comercial (PH-006).
+editor visual (PH-005) e produto comercial (PH-006).
 
 ## Instalação
 
@@ -75,14 +79,43 @@ opcionais e lista somente os perfis persistentes pertencentes ao Mili.
    Resultados de Chrome/Firefox ficam em `capture/browser-validation/` e nunca alteram o
    manifesto oficial. A matriz completa é gravada em `capture/browser-matrix.json`.
 
-5. **Execute o mirror**:
+5. **Fallback editável quando o mirror ficar L0/L1**:
+
+   ```bash
+   npm run recreate -- --config mirror.config.yaml --plan recreation-plan.json
+   cd recreation
+   npm ci
+   npm run build
+   cd ..
+   npm run validate:recreation -- --config mirror.config.yaml
+   ```
+
+   O plano deve permanecer dentro da raiz autorizada do projeto. O gerador nunca sobrescreve
+   uma pasta `recreation/` que já contenha arquivos. O resultado registra o escopo realmente
+   reconstruído em `recreation-state.json` e `RECONSTRUCTION-MAP.md`.
+
+   Quando o plano evolui depois (ex.: mídia de cases adquirida via `acquire-recreation-media.js`
+   e adicionada ao plano), atualize sem regerar o scaffold:
+
+   ```bash
+   npm run update:recreation-content -- --config mirror.config.yaml --plan recreation-plan.json
+   cd recreation && npm run build
+   cd ..
+   npm run validate:recreation -- --config mirror.config.yaml
+   npm run compare:recreation-visual -- --config mirror.config.yaml
+   ```
+
+   `compare:recreation-visual` gera um sinal aproximado de similaridade estrutural contra os
+   screenshots do mirror original — evidência suplementar, não altera a classificação LR/LP.
+
+6. **Execute o mirror**:
 
    ```bash
    node server/serve.js --contract capture/serving-contract.json
    # http://127.0.0.1:4173
    ```
 
-6. **Relatório de handoff**:
+7. **Relatório de handoff**:
 
    ```bash
    node scripts/report.js --config mirror.config.yaml
@@ -112,12 +145,12 @@ verificações `PASS` e classificação **L4**.
 nt-site-mirror/
 ├── SKILL.md            # orquestração do agent team (carregue esta skill)
 ├── agents/             # protocolo dos 12 agentes
-├── templates/          # authorization/config/plan + report-template
+├── templates/          # authorization/config/plan + template React/Vite de Recreation
 ├── schemas/            # JSON schemas ATIVOS (com consumidor em runtime)
 │   └── future/         # schemas de fases futuras (sem consumidor — ver README local)
 ├── validators/         # validadores reais (ajv) dos schemas ativos
 ├── browser/            # policy, contextos, detecção, CDP centralizado e browser matrix
-├── scripts/            # guardian, doctor, capture, rewrite, blueprint, validate, report, selftest
+├── scripts/            # pipeline de mirror + recreate/validate-recreation + selftest
 ├── server/serve.js     # servidor local do mirror (byte-range, 404 real, safe-path)
 ├── install/            # WSL 2 (Windows) e Linux — ambos com modo --dry-run
 ├── docs/ARCHITECTURE.md

@@ -39,6 +39,15 @@ report.js (HandoffReporter) ──────────► REPORT.md · LAUNC
                                         DEPENDENCIES.md · AUTHORIZATION-SUMMARY.md
 ```
 
+### Fallback editável
+
+Quando o mirror fica L0/L1 ou o usuário pede código editável, `recreation-plan.json` e as
+evidências autorizadas alimentam `recreate.js`. O resultado é um projeto React/Vite em
+`recreation/`, com conteúdo/configuração separados e galeria opcional de projetos,
+`RECONSTRUCTION-MAP.md` e
+`recreation-state.json`. Depois, `validate-recreation.js` gera LR/LP limitado às seções
+declaradas em `recreation/validation/recreation-validation.json`.
+
 ## Contratos entre componentes
 
 | Artefato | Produtor → Consumidores | Schema |
@@ -50,6 +59,10 @@ report.js (HandoffReporter) ──────────► REPORT.md · LAUNC
 | `experience-blueprint/*.json` | blueprint → recreation/QA | `schemas/future/experience-blueprint.schema.json` (PH-004, sem consumidor) |
 | `validation-results.json` | validate → report | por rota/viewport + totais + classification |
 | `acquisition-records.jsonl` | capture → blueprint/report | ver PRD (assetRecordExample) |
+
+| `recreation-plan.json` | usuário/agente → recreate | contrato v1 validado em runtime por `scripts/lib/recreation.js` |
+| `recreation-state.json` | recreate → validate-recreation/handoff | modo, classificação, escopo e itens não implementados |
+| `recreation-validation.json` | validate-recreation → handoff | LR/LP, desktop/mobile/reduced-motion e `completeSite` |
 
 ## Modelo de segurança
 
@@ -78,6 +91,11 @@ report.js (HandoffReporter) ──────────► REPORT.md · LAUNC
 6. **Classificação honesta**: L0–L4 calculada a partir de evidências; módulos não exercitados
    são marcados `unexercised`, nunca apresentados como completos.
 
+7. **Editable Recreation por fatias**: `recreate.js` nunca sobrescreve saída existente, separa
+   conteúdo/tema/layout e registra cada componente como `reconstructed` ou `approximated`.
+   Assets capturados podem ser reutilizados em modo Hybrid. LR vale somente para as seções
+   declaradas; o validador grava `completeSite: false` enquanto houver itens não implementados.
+
 ## Onde cada requisito do PRD vive
 
 | PRD | Implementação |
@@ -89,7 +107,8 @@ report.js (HandoffReporter) ──────────► REPORT.md · LAUNC
 | A-007 WebGL/Media | sinais em `blueprint.js`; byte-range em `server/serve.js` + `validate.js` |
 | A-008 Blueprint | `scripts/blueprint.js` |
 | A-009 LocalRuntime | `server/serve.js` |
-| A-010 Recreation | `agents/recreation.md` (protocolo; PH-004) |
+| A-010 Recreation | `scripts/recreate.js`, `scripts/lib/recreation.js`, `templates/recreation-studio/`, `agents/recreation.md` |
 | A-011 QA | `scripts/validate.js` |
+| A-011 QA da Recreation | `scripts/validate-recreation.js` (Chromium oficial, contextos clean) |
 | A-012 Handoff | `scripts/report.js`, `templates/report-template.md` |
 | FR-024 retomada | artefatos por fase; rerodar só a fase que falhou |

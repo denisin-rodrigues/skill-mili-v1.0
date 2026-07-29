@@ -39,7 +39,18 @@ function main() {
     : [];
   const failures = readJson(path.join(project.dirs.logs, 'network-failures.json'), []);
   const blockedHosts = [...new Set(blocked.map((b) => new URL(b.url).hostname))];
-  const classification = validation?.classification?.acceptanceLevel || manifest.acceptanceLevel || 'pending-validation';
+  const mirrorClassification = validation?.classification?.acceptanceLevel || manifest.acceptanceLevel || 'pending-validation';
+  const recreationRoot = path.join(project.outputDir, 'recreation');
+  const recreationState = readJson(path.join(recreationRoot, 'recreation-state.json'), null);
+  const recreationValidation = readJson(path.join(recreationRoot, 'validation', 'recreation-validation.json'), null);
+  const visualComparison = readJson(path.join(recreationRoot, 'validation', 'visual-comparison.json'), null);
+  const recreationValidated = recreationValidation?.ok === true;
+  const recreationLocalOnly = recreationValidation?.scenarios?.every((item) => item.checks?.localOnly) === true;
+  const classification = recreationValidated ? recreationValidation.acceptanceLevel : mirrorClassification;
+  const mode = recreationState?.mode || 'static-mirror';
+  const launchCommand = recreationState
+    ? 'cd recreation && npm ci && npm run dev'
+    : 'node server/serve.js --contract capture/serving-contract.json';
   const browserMatrix = readJson(path.join(project.dirs.capture, 'browser-matrix.json'), null);
 
   const templatePath = path.join(SKILL_ROOT, 'templates', 'report-template.md');
@@ -49,7 +60,7 @@ function main() {
     source: scope.source.url,
     generatedAt: isoNow(),
     classification,
-    mode: 'static-mirror',
+    mode,
     routesDeclared: manifest.routesDeclared ?? scope.routes.include.length,
     routesExercised: manifest.routesExercised ?? 0,
     viewports: (scope.viewports || []).map((v) => `${v.name} (${v.width}x${v.height})`).join(', '),
@@ -61,7 +72,21 @@ function main() {
     requestsObserved: manifest.requestsObserved ?? 0,
     authorizationHash: scope.authorizationHash,
     byteRange: validation?.byteRange ? `HTTP ${validation.byteRange.status} em ${validation.byteRange.asset}` : 'não testado',
-    offlineValidated: classification === 'L4' ? 'sim' : 'não',
+    offlineValidated: recreationState
+      ? `mirror: ${mirrorClassification === 'L4' ? 'sim' : 'não'}; Recreation local-only: ${recreationLocalOnly ? 'sim' : 'não'} no escopo declarado`
+      : classification === 'L4'
+        ? 'sim'
+        : 'não',
+    recreationValidation: recreationState
+      ? `${recreationValidation?.acceptanceLevel || 'não validada'} para ${(recreationState.scope || []).join(', ')}; site completo: ${recreationValidation?.completeSite ? 'sim' : 'não'}`
+      : 'não acionada',
+    reconstructedSummary: recreationState
+      ? `Seções ${(recreationState.scope || []).join(', ')}; ver \`recreation/RECONSTRUCTION-MAP.md\`.`
+      : 'Nada neste modo (static-mirror).',
+    launchCommand,
+    recreationEvidence: recreationState
+      ? '- Recreation: `recreation/`\n- Mapa: `recreation/RECONSTRUCTION-MAP.md`\n- Validação: `recreation/validation/recreation-validation.json`'
+      : '',
   });
   // Browser matrix section (Browser Runtime Strategy): official source + every pass
   let browserSection = '';
@@ -84,7 +109,35 @@ function main() {
     const skipped = browserMatrix.passes.filter((p) => ['skipped', 'disabled'].includes(p.status)).length;
     console.log(`Navegadores: ${executed} passes executados, ${skipped} ignorados/desabilitados (ver capture/browser-matrix.json)`);
   }
-  fs.writeFileSync(path.join(project.outputDir, 'REPORT.md'), report + browserSection, 'utf8');
+  const recreationSection = recreationState
+    ? [
+        '',
+        '## Editable Recreation',
+        '',
+        `- Classificação do mirror original: **${mirrorClassification}**.`,
+        `- Resultado da Recreation: **${recreationValidation?.acceptanceLevel || 'não validada'}** no escopo declarado.`,
+        `- Método: **${mode}**.`,
+        `- Seções reconstruídas: ${(recreationState.scope || []).join(', ') || 'nenhuma'}.`,
+        `- Site completo: **${recreationValidation?.completeSite ? 'sim' : 'não'}**.`,
+        `- Não implementado: ${(recreationState.notImplemented || []).join(', ') || 'nenhum item declarado'}.`,
+        ...(recreationValidation?.caseResults?.length
+          ? [`- Cases: ${recreationValidation.caseResults.filter((c) => c.ok).length}/${recreationValidation.caseResults.length} rotas \`/work/:slug\` aprovadas.`]
+          : []),
+        '- Conteúdo editável: `recreation/src/content/site-content.ts`.',
+        '- Tema editável: `recreation/src/config/brand.ts`.',
+        ...(visualComparison
+          ? [
+              `- Comparação visual (aproximada, não é gate — CP-001): similaridade média ${
+                visualComparison.averageStructuralSimilarity !== null
+                  ? `${(visualComparison.averageStructuralSimilarity * 100).toFixed(1)}%`
+                  : 'não calculada'
+              }${visualComparison.anyReferenceLikelyBlank ? ' — **aviso**: screenshot(s) original(is) parecem em branco/preloader; score não reflete a Recreation' : ''}; ver \`recreation/validation/visual-comparison.json\`.`,
+            ]
+          : []),
+        '',
+      ].join('\n')
+    : '';
+  fs.writeFileSync(path.join(project.outputDir, 'REPORT.md'), report + recreationSection + browserSection, 'utf8');
 
   const gaps = [
     '# KNOWN-GAPS — Lacunas conhecidas',
@@ -103,6 +156,18 @@ function main() {
     ...(failures.length ? failures.slice(0, 50).map((f) => `- ${f.url} — ${f.error}`) : ['- nenhuma']),
     '',
     '## Limitações do método',
+    ...(recreationState
+      ? [
+          `- Editable Recreation cobre somente: ${(recreationState.scope || []).join(', ')}.`,
+          `- Ainda não implementado na Recreation: ${(recreationState.notImplemented || []).join(', ')}.`,
+          '- O objeto de manteiga em CSS é uma aproximação; não recupera a cena, geometria ou shaders WebGL originais.',
+          ...(visualComparison?.anyReferenceLikelyBlank
+            ? [
+                '- Comparação visual: um ou mais screenshots originais em capture/screenshots/ aparentam estar em branco/preloader (provável causa da classificação L0 do mirror); o score de similaridade não deve ser lido como qualidade da Recreation — ver recreation/validation/visual-comparison.json.',
+              ]
+            : []),
+        ]
+      : []),
     '- O HTML servido é o DOM pós-hidratação; scripts capturados podem reaplicar efeitos já presentes no DOM (ex.: duplicar nós inseridos via JS). Se isso quebrar a experiência, usar Editable Recreation.',
     '- JavaScript: apenas referências estáticas literais são reescritas (import/export/dynamic import/Worker/new URL/fetch). Strings arbitrárias e URLs construídas dinamicamente NÃO são reescritas — ver capture/rewrite-report.json.',
     '- Caminhos estáticos conhecidos fora das posições AST suportadas (ex.: concatenação parcial) não são reescritos.',
@@ -152,8 +217,27 @@ function main() {
   fs.writeFileSync(path.join(project.outputDir, 'AUTHORIZATION-SUMMARY.md'), authSummary, 'utf8');
 
   const launch = [
-    '# LAUNCH — Como executar o mirror localmente',
+    '# LAUNCH — Como executar localmente',
     '',
+    ...(recreationState
+      ? [
+          '## Editable Recreation',
+          '```bash',
+          'cd recreation',
+          'npm ci',
+          'npm run dev',
+          '```',
+          '',
+          'Servidor em http://127.0.0.1:4174.',
+          '',
+          '### Revalidar a Recreation',
+          '```bash',
+          'node scripts/validate-recreation.js --config mirror.config.yaml',
+          '```',
+          '',
+          '## Static Mirror original',
+        ]
+      : []),
     '```bash',
     'node server/serve.js --contract capture/serving-contract.json',
     '```',
@@ -172,14 +256,17 @@ function main() {
   const classificationMeta = validation?.classification?.acceptanceLevel
     ? validation.classification
     : { acceptanceLevel: classification, validationTarget: manifest.validationTarget || 'authorized-site', fixtureId: manifest.fixtureId || null };
-  console.log(`Classificação: ${classification} — ${acceptanceSentence(classificationMeta)}`);
-  console.log('Método: Static Mirror');
+  const classificationDescription = recreationValidated
+    ? `${classification} validado para as seções declaradas da Recreation; site completo: não.`
+    : acceptanceSentence(classificationMeta);
+  console.log(`Classificação: ${classification} — ${classificationDescription}`);
+  console.log(`Método: ${mode}`);
   console.log(`Rotas declaradas: ${manifest.routesDeclared ?? '?'} | Rotas validadas: ${validation?.totals?.routesOk ?? '?'}`);
   console.log(`Interações declaradas: ${manifest.interactionsDeclared ?? '?'} | Interações validadas: ${manifest.interactionsExercised ?? '?'}`);
   console.log(`Recursos locais: ${manifest.resourcesLocal ?? '?'} | Bloqueados: ${manifest.resourcesBlocked ?? '?'} | Falhas: ${manifest.resourcesFailed ?? '?'}`);
-  console.log(`Offline validado: ${classification === 'L4' ? 'sim' : 'não'}`);
-  console.log('\nComando de inicialização:\n  node server/serve.js --contract capture/serving-contract.json');
-  console.log('\nConsulte: REPORT.md, KNOWN-GAPS.md, DEPENDENCIES.md, capture/manifest.json, experience-blueprint/');
+  console.log(`Offline validado: ${mirrorClassification === 'L4' ? 'sim' : 'não (mirror)'} | Recreation local-only: ${recreationLocalOnly ? 'sim' : 'não'}`);
+  console.log(`\nComando de inicialização:\n  ${launchCommand}`);
+  console.log('\nConsulte: REPORT.md, KNOWN-GAPS.md, DEPENDENCIES.md, capture/manifest.json, experience-blueprint/ e recreation/.');
 }
 
 try {

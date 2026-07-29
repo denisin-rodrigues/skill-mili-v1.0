@@ -43,11 +43,13 @@ sem critérios de aceite** (CP-009: NoFalseCompleteness).
 | 5 | Blueprint | ExperienceBlueprintBuilder | `node scripts/blueprint.js --config <cfg>` | `experience-blueprint/*.json` |
 | 6 | Servidor local | LocalRuntimeEngineer | `node server/serve.js --contract capture/serving-contract.json` | sobe em 127.0.0.1:4173 |
 | 7 | Validação | QAAndEvidence | `node scripts/validate.js --config <cfg>` e `--offline` | nível L2+ (L4 com offline) |
+| 7R | Fallback editável (quando L0/L1 ou pedido explícito) | RecreationEngineer + QAAndEvidence | `node scripts/recreate.js --config <cfg> --plan <plan>` e `node scripts/validate-recreation.js --config <cfg>` | LR no escopo declarado ou LP com lacunas |
 | 8 | Handoff | HandoffReporter | `node scripts/report.js --config <cfg>` | REPORT/KNOWN-GAPS/DEPENDENCIES + nível declarado |
 
 **Fallback (CP-004)**: se após a captura a classificação ficar abaixo do mínimo definido no
-capture-plan (ex.: L0/L1), NÃO force o resultado. Abra `agents/recreation.md` e proponha
-*Editable Recreation* ou entregue *Partial Mirror* com lacunas documentadas.
+capture-plan (ex.: L0/L1), NÃO force o resultado. Abra `agents/recreation.md`, crie um plano
+explícito dentro da raiz autorizada e execute a fatia declarada de *Editable Recreation*.
+Se a fatia não passar nos próprios gates, entregue LP com lacunas documentadas.
 
 **Estado persistente**: após cada fase, registre no relatório de sessão o que está completo
 (ver `capture/manifest.json`). Retomada após falha: rerode apenas a fase que falhou — os
@@ -63,8 +65,12 @@ artefatos das fases anteriores são insumos válidos. Máximo de 3 retentativas 
 | `ntmirror scope` | edição assistida de `mirror.config.yaml` + `capture-plan.yaml` |
 | `ntmirror capture` | `node scripts/capture.js --config mirror.config.yaml` (`--headed`, `--routes /,/x`) |
 | `ntmirror blueprint` | `node scripts/blueprint.js --config mirror.config.yaml` |
+| `ntmirror recreate` | `node scripts/recreate.js --config mirror.config.yaml --plan recreation-plan.json [--output recreation]` |
+| atualização da Recreation | `node scripts/update-recreation-content.js --config mirror.config.yaml --plan recreation-plan.json` |
+| comparação visual (Recreation) | `node scripts/compare-recreation-visual.js --config mirror.config.yaml` (evidência suplementar, não gate) |
 | `ntmirror serve` | `node server/serve.js --contract capture/serving-contract.json [--port 4173]` |
 | `ntmirror validate` | `node scripts/validate.js --config mirror.config.yaml [--offline]` |
+| validação da Recreation | `node scripts/validate-recreation.js --config mirror.config.yaml [--output recreation]` |
 | `ntmirror report` | `node scripts/report.js --config mirror.config.yaml` |
 | `ntmirror run` | executar as fases 1→8 em sequência, com gates |
 
@@ -97,7 +103,7 @@ artefatos das fases anteriores são insumos válidos. Máximo de 3 retentativas 
 ├── experience-blueprint/
 ├── mirror/             # pages/ + assets/ (o que foi preservado)
 ├── REPORT.md LAUNCH.md KNOWN-GAPS.md DEPENDENCIES.md AUTHORIZATION-SUMMARY.md
-└── (recreation/ quando Editable Recreation for acionada — pós-MVP)
+└── recreation/         # React/Vite editável + state/map/validation quando o fallback for acionado
 ```
 
 ## Mensagem de conclusão

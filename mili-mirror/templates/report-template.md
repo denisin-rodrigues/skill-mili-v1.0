@@ -24,11 +24,12 @@
 
 - Byte-range (HTTP 206): {{byteRange}}
 - Offline validado: {{offlineValidated}}
+- Editable Recreation: {{recreationValidation}}
 
 ## Perguntas obrigatórias do handoff
 
 1. **O que foi preservado?** Recursos listados em `capture/manifest.json` e `capture/acquisition-records.jsonl`.
-2. **O que foi reconstruído?** Nada neste modo (static-mirror).
+2. **O que foi reconstruído?** {{reconstructedSummary}}
 3. **Quais rotas foram testadas?** Ver `capture/validation-results.json`.
 4. **Quais viewports foram testados?** {{viewports}}.
 5. **Quais interações foram exercitadas?** Ver manifest (scroll no MVP).
@@ -36,7 +37,7 @@
 7. **Quais recursos foram bloqueados?** Ver `capture/logs/blocked-external.jsonl`.
 8. **Quais estados não foram exercitados?** Ver `KNOWN-GAPS.md`.
 9. **O projeto funciona offline?** {{offlineValidated}}.
-10. **Qual é o comando de inicialização?** `node server/serve.js --contract capture/serving-contract.json`
+10. **Qual é o comando de inicialização?** `{{launchCommand}}`
 11. **O resultado é mirror, recreation, hybrid, inspired ou partial?** {{mode}}.
 
 ## Evidências
@@ -46,3 +47,4 @@
 - Manifesto: `capture/manifest.json`
 - Hashes: `capture/hashes.sha256`
 - Blueprint: `experience-blueprint/`
+{{recreationEvidence}}
