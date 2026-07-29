@@ -1,55 +1,47 @@
-# Mili Site Mirror Agent Team
+# Mili — copie e recrie sites, do jeito certo
 
-Sistema multiagente para **captura autorizada**, análise, reconstrução editável e
-validação de experiências frontend. Recebe uma URL autorizada e produz um
-**baseline local reproduzível, validado, documentado e editável**.
+Mili é uma ferramenta que pega um site (o seu, ou um que você tenha
+autorização de verdade pra mexer) e cria uma **cópia local funcional** dele
+no seu computador — pronta pra você estudar, editar, testar ou usar como
+ponto de partida de um projeto novo.
 
-> **Leia [AUTHORIZATION-POLICY.md](./AUTHORIZATION-POLICY.md) antes de usar.**
-> Esta ferramenta é para sites **próprios ou com autorização real** — e a
-> verificação de autorização hoje é majoritariamente autodeclarada. Não
-> contorna autenticação, CAPTCHA, paywall, DRM, WAF ou anti-bot; não extrai
-> backend/banco de dados; não recupera repositórios de terceiros.
+Ela não tira só um "print" do site. Ela realmente **navega** pelo site como
+uma pessoa faria — rola a página, espera as animações carregarem, confere o
+celular e o computador — e só then salva o que encontrou. No final, ela te
+diz com honestidade o que funcionou e o que não funcionou, sem enfeitar o
+resultado.
 
-## O que ela faz
+> ⚠️ **Antes de usar, leia o
+> [guia de autorização](https://github.com/denisin-rodrigues/skill-mili-v1.0/blob/master/AUTHORIZATION-POLICY.md).**
+> Isso é pra sites seus ou que você realmente tem permissão de usar — não é
+> uma ferramenta pra copiar o site de qualquer concorrente ou empresa sem
+> avisar ninguém. Ela também não quebra login, captcha, nem sistemas de
+> proteção — se o site tem uma trava, a Mili respeita.
 
-1. **Guardian** valida autorização e trava o escopo (domínios, rotas) antes de
-   qualquer captura.
-2. **Static Mirror**: abre o site em Chromium real (Playwright), descobre
-   recursos tardios (scroll, lazy assets, dynamic imports), preserva tudo com
-   SHA-256 e serve localmente com byte-range, 404 real e proteção contra path
-   traversal.
-3. **Validação honesta**: classifica o resultado em níveis **L0–L4** (falhou →
-   offline validado) com base em evidência real — nunca em aparência.
-4. **Editable Recreation** (fallback): quando o mirror não atinge o nível
-   mínimo, gera um projeto React/Vite com conteúdo/tema separados do layout,
-   cases individuais, e validação Playwright própria (desktop/mobile/
-   `prefers-reduced-motion`).
-5. **Handoff transparente**: `REPORT.md`, `KNOWN-GAPS.md`, `DEPENDENCIES.md` —
-   todo estado não testado é declarado, nunca apresentado como concluído.
+## O que ela sabe fazer
 
-## Estrutura do repositório
+- **Baixa o site de verdade**, incluindo as partes que só aparecem quando
+  você rola a página ou espera um pouco (muita ferramenta de "clonar site"
+  perde exatamente essas partes).
+- **Testa se a cópia realmente funciona** — abre no celular, no computador,
+  sem internet — antes de te dizer que deu certo.
+- **É honesta sobre o resultado.** Se alguma parte não deu certo, ela te
+  fala exatamente o quê, em vez de fingir que está tudo perfeito.
+- **Quando a cópia exata não é confiável**, ela monta uma versão alternativa
+  editável — o texto, as cores e as imagens ficam separados do resto, pra
+  você trocar sem precisar mexer em código complicado.
+- **Te entrega um relatório no final**, em português simples, explicando o
+  que foi salvo, o que não deu, e como rodar tudo na sua máquina.
 
-```
-.
-├── AUTHORIZATION-POLICY.md   # leia isso primeiro
-├── LICENSE                   # MIT (cobre o código, não autoriza uso indevido)
-├── PRD.MD                    # especificação completa do produto
-└── mili-mirror/               # a ferramenta em si
-    ├── SKILL.md               # orquestração do agent team (para Claude Code)
-    ├── agents/                 # protocolo dos 12 agentes
-    ├── scripts/                 # pipeline: guardian, capture, blueprint, validate,
-    │                           #   recreate, validate-recreation, compare-recreation-visual, report
-    ├── templates/               # authorization/config/plan + template React/Vite de Recreation
-    ├── server/serve.js          # servidor local do mirror
-    ├── browser/                 # policy, contextos, CDP, browser matrix
-    ├── install/                 # instaladores Linux e WSL 2 (Windows), com --dry-run
-    ├── docs/ARCHITECTURE.md     # arquitetura e contratos entre componentes
-    └── tests/                   # unit/ (node:test) + fixture/ (self-test)
-```
+## Antes de começar
 
-## Instalação e primeiro uso
+Você vai precisar ter o **Node.js** instalado (versão 18 ou mais nova) — é
+um programa gratuito, dá pra baixar em [nodejs.org](https://nodejs.org).
+Funciona no Windows (usando o WSL), Mac e Linux.
 
-Pré-requisitos: **Node.js ≥ 18.17** (Linux, macOS ou Windows/WSL 2).
+## Como instalar
+
+Abra o terminal e cole isso, uma linha de cada vez:
 
 ```bash
 git clone https://github.com/denisin-rodrigues/skill-mili-v1.0.git
@@ -58,70 +50,83 @@ npm install
 npx playwright install chromium
 ```
 
-Confirme o ambiente:
+Isso baixa a ferramenta e instala tudo que ela precisa pra funcionar
+(inclusive um navegador próprio, separado do seu Chrome normal).
+
+Pra conferir se deu tudo certo:
 
 ```bash
 node scripts/doctor.js --browsers
 ```
 
-Rode o self-test (sobe um site fixture local e valida o pipeline inteiro,
-sem tocar em nenhum site real):
+E pra ver a ferramenta funcionando de ponta a ponta, num site de teste que
+já vem pronto (sem mexer em nenhum site real):
 
 ```bash
 npm run selftest
 ```
 
-Saída esperada: todas as verificações `PASS` e classificação **L4**.
+Se aparecer `PASS` em tudo no final, está pronta pra usar.
 
-### Começando um caso de estudo do zero
+## Como começar um projeto do zero
 
-1. Copie os templates de autorização/config:
+1. **Diga à Mili qual site você quer copiar e por quê.** Copie os dois
+   arquivos de exemplo pra pasta do seu projeto:
    ```bash
    cp templates/authorization.yaml meu-projeto/authorization.yaml
    cp templates/mirror.config.yaml meu-projeto/mirror.config.yaml
    ```
-2. Preencha `authorization.yaml` — domínio, rotas autorizadas, tipo de
-   autorização e responsável. **Se for autorização de terceiro (cliente,
-   empregador), guarde a prova real** (arquivo `.well-known`, e-mail,
-   documento) — o Guardian não verifica isso automaticamente por você.
-3. Trave o escopo e capture:
+   Abra o `authorization.yaml` e preencha: o endereço do site, quais páginas
+   você quer copiar, e qual é a sua relação com o site (dono, funcionário,
+   cliente autorizado, etc). **Se não for um site seu**, guarde uma prova
+   real dessa autorização (um e-mail, um documento) — a ferramenta não
+   verifica isso sozinha, quem verifica é você.
+
+2. **Peça pra ela confirmar que está tudo certo e começar:**
    ```bash
    node scripts/guardian.js --config meu-projeto/mirror.config.yaml --authorization meu-projeto/authorization.yaml
    node scripts/capture.js --config meu-projeto/mirror.config.yaml
    ```
-4. Gere o blueprint e valide:
+
+3. **Peça pra ela testar o resultado:**
    ```bash
    node scripts/blueprint.js --config meu-projeto/mirror.config.yaml
    node scripts/validate.js --config meu-projeto/mirror.config.yaml
    node scripts/validate.js --config meu-projeto/mirror.config.yaml --offline
    ```
-5. Se a classificação ficar **L0/L1**, use o fallback editável — ver
-   [mili-mirror/README.md](./mili-mirror/README.md#quickstart) e
-   [mili-mirror/agents/recreation.md](./mili-mirror/agents/recreation.md).
-6. Gere o relatório de handoff:
+
+4. Se o site copiado não funcionar bem o suficiente, use a versão editável —
+   passo a passo em
+   [mili-mirror/agents/recreation.md](https://github.com/denisin-rodrigues/skill-mili-v1.0/blob/master/mili-mirror/agents/recreation.md).
+
+5. **Peça o relatório final:**
    ```bash
    node scripts/report.js --config meu-projeto/mirror.config.yaml
    ```
+   Isso gera um resumo em português explicando o que deu certo, o que não
+   deu, e o comando pra abrir o site copiado no seu navegador.
 
-Guia completo, comandos de qualidade (`lint`/`typecheck`/`test`/`build`) e
-classificação de honestidade (L0–L4, LR, LP): veja
-**[mili-mirror/README.md](./mili-mirror/README.md)**.
+Guia técnico completo (pra quem já programa) está em
+[mili-mirror/README.md](https://github.com/denisin-rodrigues/skill-mili-v1.0/blob/master/mili-mirror/README.md).
 
-## Estado atual (honesto)
+## O que já funciona bem, e o que ainda não
 
-**Funcionando e testado** (123 testes unitários, lint/typecheck limpos,
-self-test end-to-end): captura estática, validação online/offline,
-Editable Recreation com cases individuais e validação de rotas de case,
-comparação visual aproximada mirror-vs-recreation.
+**Já funciona e foi bastante testado:** copiar um site e servi-lo
+localmente; checar se ele funciona no celular, no computador e sem
+internet; montar uma versão editável quando a cópia exata não é
+confiável, incluindo páginas individuais de "cases"/projetos; comparar
+visualmente a cópia com o site original.
 
-**Não implementado ainda**: reconstrução automática de cenas WebGL/Three.js
-(existe só como protótipo manual em um projeto de exemplo, não gerado pelo
-pipeline), editor visual (PH-005), verificação criptográfica automática de
-domínio (o Guardian aceita autorização autodeclarada — a verificação real é
-um passo manual, ver `AUTHORIZATION-POLICY.md`).
+**Ainda não existe:** recriar automaticamente efeitos 3D/WebGL complexos
+(hoje isso só foi feito manualmente, uma vez, como experimento); um editor
+visual (arrastar e soltar pra mudar texto/imagem sem editar arquivo); e
+uma verificação automática que prove sozinha que você realmente tem
+autorização do site — hoje isso depende de você ser honesto ao preencher o
+`authorization.yaml` (veja o guia de autorização linkado no topo).
 
 ## Licença
 
-[MIT](./LICENSE) para o código. Isso não é uma autorização para usar a
-ferramenta contra sites de terceiros sem permissão real — ver
-[AUTHORIZATION-POLICY.md](./AUTHORIZATION-POLICY.md).
+O código é [MIT](https://github.com/denisin-rodrigues/skill-mili-v1.0/blob/master/LICENSE) — livre pra usar, copiar e modificar. Isso **não** é uma
+autorização pra usar a ferramenta contra o site de outra pessoa/empresa sem
+permissão real — veja o
+[guia de autorização](https://github.com/denisin-rodrigues/skill-mili-v1.0/blob/master/AUTHORIZATION-POLICY.md).
