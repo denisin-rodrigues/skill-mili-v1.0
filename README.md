@@ -23,8 +23,8 @@ resultado.
 - **Baixa o site de verdade**, incluindo as partes que só aparecem quando
   você rola a página ou espera um pouco (muita ferramenta de "clonar site"
   perde exatamente essas partes).
-- **Testa se a cópia realmente funciona** (abre no celular, no computador,
-  sem internet) antes de te dizer que deu certo.
+- **Testa se a cópia realmente funciona**, abrindo ela no celular, no
+  computador e até sem internet, antes de te dizer que deu tudo certo.
 - **É honesta sobre o resultado.** Se alguma parte não deu certo, ela te
   fala exatamente o quê, em vez de fingir que está tudo perfeito.
 - **Quando a cópia exata não é confiável**, ela monta uma versão alternativa
